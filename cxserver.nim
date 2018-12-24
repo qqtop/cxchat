@@ -24,7 +24,7 @@ import nimcx,cxprotocol
 # last 50 recs will be replayed to a newly connected user only
 # username is stored in plaintext, usermessages are encrypted using 
 
-# below the schema used
+# below the schema use"/crydata1.txt"d
 # let dbsqlitedb = "/data5/dbmaster/cryxchatsqlite.db" 
 # if not fileExists(dbsqlitedb):
 #    let db = open(dbsqlitedb, "", "", "")  # user, password, database name can be empty
@@ -41,7 +41,7 @@ import nimcx,cxprotocol
 let serverversion = "2.0 sqlite"
 var cxchatdb = "cxchat.db"
 var path1 = getAppdir()
-var path2 = path1 & "/cxchat.db"
+var path2 = path1 & "/cxdata1.txt"
 echo path2
 let port = 7679
 let servername = "Cryxserver"   # note: client expects this , change this name will need changes in client
