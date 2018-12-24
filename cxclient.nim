@@ -1,24 +1,19 @@
 import asyncdispatch, asyncnet
-import protocol,threadpool
+import cxprotocol,threadpool
 import nimcx
 import std/wordwrap
 #import "/data5/NimStuff/NimCxDevel/cx.nim"
-
 const clientversion = "3.1" 
-#  Latest : 2018-11-15
 
-#  dev notes steps :
-#  using ngrok
-#  1) start server :  ./server
-#  2) start ngrok  :   ngrok tcp 7679
-#  3) start client :  ./client wuff or client wuff 386
+
+#  Application : cxclient.nim
+#  Latest      : 2018-12-24
+#  Usage       : cxclient wuff 
 #  
-#  the server prog writes the ngrok port to github and the client reads it from there
-#  
+#  the server prog writes the ngrok port to a github repo and the client reads it from there
 #  client restarts itself if a disconnect occurs , just press enter to get a new prompt
 #
-#  Future ideas : send files,pics , etc
-#  
+
        
 var clientstart = epochTime() 
 var shwemojis = 0
@@ -85,7 +80,7 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
           inc contrials
           printLnErrorMsg("Server can not be reached. Maybe offline. Try again later.    ")
           printLnInfoMsg(spaces(6),"Alternatively try if the secondary server is online.     ")
-          printLnInfoMsg(spaces(6),"Try this :  client turtle   or client turtle 386         ")
+          printLnInfoMsg(spaces(6),"Try this :  client turtle  or client turtle 386         ")
           let  e = getCurrentException()
           let  msg = getCurrentExceptionMsg()
           echo()
@@ -143,10 +138,10 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
            
       if pm <> "" and pm.len > 0:
           pm = pm.strip()
-          if pm.contains("disconnected from Cryxserver"):  
+          if pm.contains("disconnected from Cxserver"):  
              # echo()
              printLnInfoMsg(cxpad(parsed.username & "[S]" & lightslategray & spaces(1) & crynow,20), pm,colLeft=truetomato,colRight=pastelpink,xpos = 1)
-          elif pm.contains("connected to Cryxserver"):
+          elif pm.contains("connected to Cxserver"):
              printLnInfoMsg(cxpad(parsed.username & "[S]" & spaces(1) & crynow,25), pm & spaces(1),colLeft=turquoise,colRight=pastelgreen,xpos = 1)
           else:
              if parsed.username.contains("CRYX") :
@@ -187,11 +182,11 @@ when isMainModule:
     getcxTrueColorSet()
     cleanscreen()
     decho(2)
-    cxprintLn(" Cryxchat     " & cxpad("Client SateSticks V" & clientversion & spaces(23) & "qqTop 2018",63),colgold,slateblue,xpos=1)
+    cxprintLn(" Cxchat       " & cxpad("cxClient SateSticks V" & clientversion & spaces(23) & "qqTop 2018",63),colgold,slateblue,xpos=1)
     # Ensure that a username was specified.
     if paramCount() < 1:
         # Terminate the client early with an error message if there was no username specified.
-        printLnInfoMsg("Usage        ","e.g.: ./client turtle   or   ./client turtle 386            ",xpos = 1)
+        printLnInfoMsg("Usage        ","e.g.: client turtle ",xpos = 1)
         doFinish()
     
     let serverAddr = "0.tcp.ap.ngrok.io"   # <----
