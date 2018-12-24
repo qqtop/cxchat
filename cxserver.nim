@@ -375,7 +375,7 @@ when isMainModule:
   try:
     writeport(path2)
   except:
-    printLnErrorMsg("Try to run : ngrok tcp 10001 in a new terminal first !   ")
+    printLnErrorMsg("Try to run : ngrok tcp $1 in a new terminal first !   " % $port)
     doFinish()
      
   # Execute the ``loop`` procedure. The ``waitFor`` procedure will run the
