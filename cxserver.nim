@@ -40,7 +40,7 @@ import nimcx,cxprotocol
 
 let serverversion = "2.0 sqlite"
 var cxchatdb = "cxchat.db"
-var path1 = getAppdir()
+var path1 = "/dev/shm"
 var path2 = path1 & "/cxdata1.txt"
 echo path2
 let port = 7679
