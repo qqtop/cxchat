@@ -1,13 +1,14 @@
 # cxchat
-chat every where 
 
 WIP
 
-chat client/server system 
+Planned chat client/server system for private chats
 
-connection via a free ngrok node
+connections via ngrok tunnel
 
-with encrypted msgs 
+encrypted messages 
+
+
 
 
  
