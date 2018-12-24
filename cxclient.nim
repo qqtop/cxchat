@@ -26,13 +26,13 @@ proc clientGetPort(url:string = "https://raw.githubusercontent.com/qqtop/cryxtem
      result = strip(client.getContent(url),true,true)    
      
      
-proc clientGetPort386(url:string = "https://raw.githubusercontent.com/qqtop/cryxtemp386/master/crydata1.txt"):string = 
-     # read content of our file on github
-     result = ""
-     sleepy(3)  # sleep 3 helps to have everything settled down 
-     let client = newHttpClient()
-     result = strip(client.getContent(url),true,true)        
-     
+# proc clientGetPort386(url:string = "https://raw.githubusercontent.com/qqtop/cryxtemp386/master/crydata1.txt"):string = 
+#      # read content of our file on github
+#      result = ""
+#      sleepy(3)  # sleep 3 helps to have everything settled down 
+#      let client = newHttpClient()
+#      result = strip(client.getContent(url),true,true)        
+#      
                          
 proc showEmojis() = 
      # using ejm3 from cxconsts.nim
@@ -202,10 +202,10 @@ when isMainModule:
     
     var serverport = 0
     # reads the ngrok port from the github which was written there by the server .. 
-    if paramcount() > 1 and paramstr(2) == "386":
-       serverport = parseInt(clientGetPort386())
-    else:   
-       serverport = parseInt(clientGetPort())
+#     if paramcount() > 1 and paramstr(2) == "386":
+#        serverport = parseInt(clientGetPort386())
+#     else:   
+    serverport = parseInt(clientGetPort())
     # Initialise a new asynchronous socket.
     # print(yellowgreen & username & dodgerblue & rightarrow & termwhite & spaces(1),xpos=2)
     var socket = newAsyncSocket()

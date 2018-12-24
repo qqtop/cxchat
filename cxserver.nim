@@ -40,8 +40,8 @@ import nimcx,cxprotocol
 
 let serverversion = "2.0 sqlite"
 var cxchatdb = "cxchat.db"
-var path1 = ""
-var path2 = getAppdir() & "/cxchat.db"
+var path1 = getAppdir()
+var path2 = path1 & "/cxchat.db"
 echo path2
 let port = 7679
 let servername = "Cryxserver"   # note: client expects this , change this name will need changes in client
