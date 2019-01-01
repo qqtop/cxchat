@@ -1,7 +1,7 @@
 # cxchat
 
- cxchat - a client/server terminal chat system for small groups 
- ================================================================
+ client/server terminal chat system for small groups 
+ =====================================================
 
  Connections via a ngrok tunnel
  
