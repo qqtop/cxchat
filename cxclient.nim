@@ -53,7 +53,7 @@ proc showEmojis() =
      
                
 proc doPrompt(username:string) =
-     # a swith to showemojis only once before the second prompt
+     # a switch to showemojis only once before the second prompt
      if shwemojis < 2: 
        if shwemojis == 1: showEmojis()
      inc shwemojis
