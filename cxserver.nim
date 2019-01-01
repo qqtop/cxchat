@@ -1,0 +1,413 @@
+import asyncdispatch, asyncnet,threadpool,db_sqlite
+import nimcx,cxprotocol
+
+# cxchat - A very private chat application for the linux terminal
+#          run the cxserver on your small left over pc 
+#          share the cxclient and keyfile with a few friends,family or run it on a couple of your own systems
+#          
+# Setup :  
+#          1) For the server presented here you need a github account and ngrok (https://ngrok.com/) 
+#          2) On github create a new empty repo and name it : cryxtemp 
+#          3) In your home dir create 2 hidden folders 
+#               .cxchat
+#               .cxchatconf       
+#          4) Create a file named niip.wsx to be used for encryption/decryption and fill it with any number of random chars.
+#             Save it into the .cxchat folder 
+#          5) Create a sqlite db as below and save it into the .cxchat folder
+#          6) Change into your .cxchatconf folder and git clone your cryxtemp repo here which you created in step 2 above.
+#          7) Share the niip.wsx and cxclient file with anyone you allow to connect
+#          8) Start up:
+#             a) open a terminal run : ngrok tcp 10001   
+#             b) open a terminal run : cxserver
+#             c) open a terminal run : client myname    (anything longer than 6 chars will be cut to size) 
+#             wait for anyone else to connect or repeat step c) and talk to yourself or send messages to your other computers
+#             
+# Note : This system was tested and worked with client connections from 4 continents.   
+#        The cxchat.db is used to keep state and replay the last 50 messages so a new connected client knows whats going on.
+#        This easily can be increased or reduced as desired.
+#        Username is stored in plaintext, usermessages are relayed and stored encrypted using xxtea-nim encryption scheme
+#        Other encryption schemes may be added in the future. 
+#        
+# Compile :   Compile  : nim  --threads:on -d:ssl -d:release -f c cxserver.nim     
+#
+# Application : cxserver.nim     
+# Backend     : sqlite  
+# Last        : 2018-01-01
+#
+# Required    : ngrok 
+#               nimble install nimcx 
+#
+# Usage example
+# 
+# 1) terminal 1   : ngrok tcp 10001
+# 2) terminal 2   : cxserver
+# 3) terminal 3   : cxclient tokyo                 # any name is fine as long as it is max 6 chars long
+# 4) browser      : http://127.0.0.1:4040/status   # to see the ngrok status
+# 
+# The sqlite schema used to create the cxchat.db:
+# 
+# let dbsqlitedb = "cxchat.db" 
+# if not fileExists(dbsqlitedb):
+#    let db = open(dbsqlitedb, "", "", "")  # user, password, database name can be empty
+#    db.exec(sql("""CREATE TABLE cryxdata (
+#                  id INTEGER PRIMARY KEY,
+#                  svdate DATE DEFAULT (datetime('now','localtime')),
+#                  client varchar(10),
+#                  msg dblob()) """))
+#                  
+#    db.exec(sql"COMMIT")
+#    db.close()
+
+proc cxwrap(aline:string,wrappos:int = 70,xpos:int=1)  # forward decl
+
+let serverversion = "3.0 sqlite"
+var cxchatdb = gethomedir() & "/.cxchat/cxchat.db"  # or put it where ever you want
+
+# this set up assumes that path2 is a gitified directory from which you can
+# make git push requests to a github repo of the same name which you need to set up yourself
+# the github repo will be used to store the file crydata1.txt which contains the connection port
+# required to have the cxclient connect to your server
+# github was selected because it is available from most countries, while dropbox may not work.
+# Other possibilities would be updateable pastebin location , your cloud location etc
+# 
+
+# we could create a dir if not existing and pull the repo in 
+var path1 = gethomedir() & ".cxchatconf"
+var path2 = path1 & "/cryxtemp"
+var path3 = path2 & "/crydata1.txt" 
+
+let port = 10001  # change to whatever you want or is available
+let servername = "Cxserver"
+var lastaction = epochTime()
+var acounter = newCxCounter()
+
+type
+  Client = ref object
+    socket: AsyncSocket
+    netAddr: string
+    id: int
+    connected: bool
+
+  Server = ref object
+    socket: AsyncSocket
+    clients: seq[Client]
+    
+var lastmsg = "" 
+var activeids = ""  # experimental to show active connection id in a server push msg
+    
+
+proc newServer(): Server =
+  ## Constructor for creating a new ``Server``.
+  Server(socket: newAsyncSocket(), clients: @[])
+
+proc `$`(client: Client): string =
+  ## Converts a ``Client``'s information into a string.
+  "Client-Id : " & $client.id & " (" & client.netAddr & ")"
+
+proc getClientIds(server: Server):seq[string] =
+     # returns all connected/active clientids in a seq              
+     var resultx = newSeq[string]()
+     for c in server.clients:
+          # Only add connected clients
+          if c.connected:
+               resultx.add($c.id)
+     result = resultx   
+     
+             
+proc disconnectMsg(aclient:string,aservername:string=servername):string =
+    result = aclient.split("(")[0] & " disconnected from " & aservername  
+    
+proc noNews(aservername:string=servername,acounterval:int):string = 
+        # maybe we can splice in some news like exchange rate or top new from the guardian or something
+        result = "Currently no news from " & aservername & " No.: " & $acounterval   
+    
+proc connectMsg(aclient:string,aservername:string=servername):string =
+    result = aclient.split("(")[0] & " connected to " & aservername
+    
+proc infoMsg(aclient:string,aservername:string=servername,clientcount:int,clientId:string,activeIds:string):string =    
+    # used to send auto message to clients via sendHello
+    if clientcount == 1 :
+          result = cxpad("{Status} " & $clientcount & " user online.  Your Id: " & clientId,55)   
+    else:
+          result = cxpad("{Status} " & $clientcount & " users online. Active Id: " & activeids & " Chat away.",55)  
+
+proc histDataMsg(aclient:string,aservername:string=servername,amsg:string):string =        
+     # displaying historical data to new connection
+     result = amsg
+          
+proc getPortServerside(url:string = "http://127.0.0.1:4040/status"):string =
+  # gets the port from where ngrok runs to be written to gist or a file
+  result = ""
+  let client = newHttpClient()
+  let zcontent = client.getContent(url)
+  for line in zcontent.splitLines():
+     if line.contains("0.tcp.ap.ngrok.io:"):
+        var l2 = line.split("o:")[1]
+        var l3 = l2.split("""\",""")
+        result = l3[0]
+ 
+proc cxwrap(aline:string,wrappos:int = 70,xpos:int=1) =
+     for wline in wrapWords(aline.strip(),72).splitLines():
+             printLn(wline.strip(),termwhite,xpos=28)
+        
+proc writeport(afile:string) =
+    # we assume a public repository on github 
+    # if you want to use another location accesible by server and client to sync the ngrok port number
+    # then changes need to be made accordingly , dropbox did not work from all location
+    # a pastebin may or may not work for you.
+    # if you have a paid ngrok account with a fixed port this setup may not be required 
+    var f = system.open(afile,fmWrite)
+    f.writeLine(getPortServerside())
+    f.close
+    discard chdir(path2)
+
+    decho(2) 
+    var z = execCmdEx("git pull  ")   # we do a pull command first to 
+                                      # check if there where any changes in case the server
+                                      # was used on another system
+                                      # maybe needs to be done 2 times or need to use git stash 
+                                      # if there is some issue
+    
+    # note to printlnBiCol statements below the first prints output
+    # the 2nd any error returned from execCmdEx tuple
+    printBiCol("git pull     ",xpos = 1)
+    cxwrap($z[0])
+    printBiCol("git pull     ",colLeft=salmon,xpos = 1)
+    cxwrap($z[1])
+    echo()
+    z = execCmdEx("git add .")
+    printBiCol("git add .    ",xpos = 1)
+    cxwrap($z[0])
+    printBiCol("git add .    ",colLeft=salmon,xpos = 1)
+    cxwrap($z[1])
+    echo()
+    z = execCmdEx(""" git commit -m"$1" """ % $now())
+    printBiCol("git commit -m",xpos = 1)
+    cxwrap($z[0])
+    printBiCol("git commit -m",colLeft = salmon,xpos = 1)
+    cxwrap($z[1])
+    echo()
+    z = execCmdEx("git push")
+    printBiCol("git push     ",xpos = 1)
+    cxwrap($z[0])
+    printBiCol("git push     ",colLeft = salmon,xpos = 1)
+    cxwrap($z[1])
+    echo()
+    
+proc getClientCount(server: Server):int = 
+     # returns count of connected clients
+     result = 0
+     for c in server.clients:
+          # Don't count disconnected.
+          if c.connected:
+              result = result + 1
+              
+   
+proc sendHello(server: Server, client: Client) {.async.} =   
+     let line = ""   # maybe for future use
+     let nobody = "  Nobody online. "
+     let clientcount = getClientCount(server)
+     let tempclient = $client
+                 
+     # write some info on the server terminal if there is something new to report        
+     if (clientcount == 0) and (lastmsg != nobody):         
+        printLnStatusMsg(line & cxnow & nobody) 
+        lastmsg = nobody 
+        
+     # send message to connected clients unless last message was the same as new message   
+     elif (clientcount > 0) and (lastmsg != "  Users online : " & $clientcount):
+        printLnStatusMsg(line & cxnow & "  Users online : " & $clientcount)
+        lastmsg = "  Users online : " & $clientcount
+        activeids = ""
+        let gci = getClientIds(server)
+        for x in 0..<gci.len:
+            activeids = activeids & " " & $gci[x]     
+        for c in server.clients:
+          # Don't send it to the client that sent this or to a client that is disconnected.
+          if c.connected :
+               # putting 3 lines below here allows us to pass correct client id around
+               # question is if this is efficient for many clients as we respawn the serverflowvar often
+               # client id's are not reused in a session and basically reflect the connection/reconnection count on the server
+               var clientId = $c.id
+               var serverFlowVar = spawn infoMsg(tempclient,clientcount=clientcount,clientId=clientId,activeids=activeids)
+               let bmsg = createMessage(chatname, ^serverFlowVar)
+               await c.socket.send(bmsg)  
+               
+     else:
+        discard 
+               
+     return     
+
+     
+proc sendNews(server: Server, client: Client) {.async.} =
+        acounter.add                 
+        var serverFlowVar = spawn noNews(servername,acounterval = acounter.value)
+        let bmsg = createMessage(chatname, ^serverFlowVar)
+        var nc = 1   # a counter to limt the message sending   --> this now works
+        for c in server.clients:
+          # Don't send it to the client that sent this or to a client that is disconnected.
+          if c.connected and nc <= getClientCount(server):
+               await c.socket.send(bmsg)  
+               inc nc
+          else:
+               discard  
+        return     
+
+     
+proc sleepAlways(server: Server, client: Client)  {.async.} = 
+    ## sendHello every so often currently abt 2 sec
+    while true:
+        await sleepAsync(2000)          # wait 2 secs so everything settles down a bit
+        await sendHello(server,client)  # now send the message
+        
+        
+proc sleepKadang(server: Server, client: Client)  {.async.} =    
+    while true: 
+      await sleepAsync(50000)          # wait 50 secs       
+      await sendNews(server,client)    # send stuff if there is someone to send to
+     
+     
+proc processMessages(server: Server, client: Client) {.async.} =
+  ## Loops while ``client`` is connected to this server, and checks
+  ## whether a message has been received from ``client``.
+  var tempclient = "" 
+  var s = epochTime()
+  while true:
+    # Pause execution of this procedure until a line of data is received from ``client``.
+    var line = await client.socket.recvLine() # The ``recvLine`` procedure returns ``""`` (i.e. a string of length 0) when ``client`` has disconnected.
+    if line.len == 0:
+       printLnInfoMsg("Disconnected   ", $client & " at " & cxnow,truetomato)
+       tempclient = $client
+       client.connected = false
+       # When a socket disconnects it must be closed.
+       client.socket.close()
+       # dissconnect message block sends the information message of a disconnect to all other live clients
+       var serverFlowVar = spawn disconnectMsg(tempclient)
+       var bmsg = createMessage(chatname, ^serverFlowVar)
+       tempclient = ""
+       for c in server.clients:
+          # Don't send it to the client that sent this or to a client that is disconnected.
+              if c.id != client.id and c.connected:
+                 await c.socket.send(bmsg)
+       return 
+       # end of disconnect message block  
+        
+    else:    
+       # Display the message that was sent by the client undecoded.
+       printlnBiCol($client & " sent: " & line,xpos = 1)
+       # we keep state now , there is an issue with long lines which are not saved into the database 
+       # for some reasons , maybe has todo with the end of line chars ... hmmmm
+       
+       let msgparsed = parseMessage(line)
+       let auser = msgparsed.username
+       let amsg =  msgparsed.message
+       #if amsg.strip() <> "2neSRotwBwc=":  # avoid blanks
+       if amsg.strip() <> "":     
+          let db = open(cxchatdb, "", "", "")  
+          db.exec(sql"INSERT INTO CRYXDATA (CLIENT, MSG) VALUES (?,?)" , auser ,amsg)
+          db.close()   
+  
+       # Send the message to other connected clients.
+       for c in server.clients:
+          # Don't send it to the client that sent this or to a client that is disconnected.
+          if c.id != client.id and c.connected:
+              await c.socket.send(line & "\c\l")        
+       
+            
+proc loop(server: Server, port = port) {.async.} =
+  ## Loops forever and checks for new connections.
+
+  # Bind the port number specified by ``port``.
+  server.socket.bindAddr(port.Port)
+  # Ready the server socket for new connections.
+  server.socket.listen()
+  printLnStatusMsg(cxpad("Listening Port : " & $port,55))
+  printLnStatusMsg(cxpad("Started at     : " & cxnow,55),colLeft=lime)
+  printLnStatusMsg(cxpad("Ready. Awaiting connections ...",55),colLeft=lime)
+  echo()
+  var tempclient = "" 
+  
+  while true:
+    # Pause execution of this procedure until a new connection is accepted.
+    let (netAddr, clientSocket) = await server.socket.acceptAddr()
+    printLnInfoMsg("Connection from",netAddr & " at " & cxnow,yellowgreen)
+    
+    # we remember the id count
+    var oldclientscount = server.clients.len
+       
+    # Create a new instance of Client.
+    let client = Client(
+      socket: clientSocket,
+      netAddr: netAddr,
+      id: server.clients.len,
+      connected: true
+    )
+    # Add this new instance to the server's list of clients.
+    server.clients.add(client)
+    # now we want to send the last 50 records to the new client only
+    let db = open(cxchatdb, "", "", "")
+    for qres in db.fastRows(sql"SELECT b.client,b.msg,b.svdate FROM (SELECT r.id,r.svdate,r.client,r.msg FROM cryxdata r ORDER BY r.id DESC LIMIT 50) b ORDER BY b.id ASC"):
+        #decho(2)
+        #echo qres # for query debug use only
+        if qres[1] <> "2neSRotwBwc=":
+                var tempclientnew = $client
+                #needs to be done for sqllite result here    
+                #also need to unpack the cursor to get the data for the histDataMsg
+                var v0 = qres[0]
+                var v1 = qres[1]
+                var v2 = qres[2]
+                var histclient = v0 & "[H]"
+                var histamsg = v1  
+                var histdate = v2
+                var histdata = " "
+                #echo histdate," ",histclient , decryptFromBase64(histamsg,key).strip()    # for debug use only
+                if histamsg.len > 0:
+                   histdata = histdate & " --> " & decryptFromBase64(histamsg,key).strip()  
+                else:
+                   histdata = histdate & " --> nil"             
+                histamsg = encryptToBase64(histdata,key) 
+                var serverFlowVar3 = spawn histDataMsg(tempclientnew,amsg=histamsg)    # <----
+                var histmsg = createMessageHist(histclient, ^serverFlowVar3)
+                for c in server.clients:
+                    # Only send to new client and not the currentlyt connected ones.
+                    if c.id == client.id and c.connected:
+                          await c.socket.send(histmsg)
+    db.close()
+    
+    # here we try to inform the others in case there was a new connection 
+    if oldclientscount < server.clients.len:   # if true then someone must have connected to the server
+         var serverFlowVar2 = spawn connectMsg($client)
+         var cmsg = createMessage(chatname, ^serverFlowVar2)
+         
+         for c in server.clients:
+         # Don't send it to the client that sent this or to a client that is disconnected.
+             if c.id != client.id and c.connected:
+               await c.socket.send(cmsg)
+    
+    # send a message to all clients giving connection status
+    asyncCheck sleepAlways(server,client)  
+    #asyncCheck sleepKadang(server,client)  # tested works almost ok 
+
+    # Run the ``processMessages`` procedure asynchronously in the background,
+    # this procedure will continuously check for new messages from the client.
+    asyncCheck processMessages(server, client)
+    #await sendHello(server,client)   # sends a message to all clients , how to do it like every 3 mins ? 
+    
+when isMainModule:
+       
+  # Initialise a new server.
+  hdx(printLnInfoMsg("Cxserver      " ,"cxChat System Server    Version: " & serverversion & " - qqTop 2019  "))
+  var server = newServer()
+  printLnStatusMsg(cxpad("Server initialised!  ",55))
+  printLnStatusMsg(cxpad("Processing ports ... ",55))
+  try:
+    writeport(path3)
+  except:
+    printLnErrorMsg("  Try to run : ngrok tcp $1 in a new terminal first ! " % $port)
+    doFinish()
+     
+  # Execute the ``loop`` procedure. The ``waitFor`` procedure will run the
+  # asyncdispatch event loop until the ``loop`` procedure finishes executing.
+  waitFor loop(server)
+
+# end of cxserver 

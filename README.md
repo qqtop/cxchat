@@ -1,14 +1,22 @@
 # cxchat
 
-WIP
+ cxchat - a client/server terminal chat system for small groups 
+ ================================================================
 
-Planned chat client/server system for private chats
+ Connections via a ngrok tunnel
+ 
+ Encrypted messages 
+ 
 
-connections via ngrok tunnel
+ ![Image](http://qqtop.github.io/cxchat.png?raw=true)
+ 
 
-encrypted messages 
+ Installation and requirements see cxserver.nim and cxprotocol.nim
 
+ Tested on openSuse TumbleWeed, Debian Testing , ParrotOs and Mint
+              
 
+![Image](http://qqtop.github.io/qqtop-small.png?raw=true)
 
 
  
