@@ -8,31 +8,32 @@ import nimcx,cxprotocol
 # Setup :  
 #          1) For the server presented here you need a github account and ngrok (https://ngrok.com/) 
 #          2) On github create a new empty repo and name it : cryxtemp 
-#          3) In your home dir create 2 hidden folders 
+#          3) In your home dir 2 hidden folders will be created
 #               .cxchat
 #               .cxchatconf       
-#          4) Create a file named niip.wsx to be used for encryption/decryption and fill it with any number of random chars.
-#             Save it into the .cxchat folder 
-#          5) Create a sqlite db as below and save it into the .cxchat folder
+#          4) Create a file named niip.wsx to be used for encryption/decryption , fill it with    
+#             any number of random chars and save it into the .cxchat folder 
+#          5) Copy the provided cxchat.db or create one as below and save it into the .cxchat folder
 #          6) Change into your .cxchatconf folder and git clone your cryxtemp repo here which you created in step 2 above.
-#          7) Share the niip.wsx and cxclient file with anyone you allow to connect
-#          8) Start up:
+#          7) Share the niip.wsx and compiled cxclient executable with anyone you allow to connect.
+#          8) Start up cxserver:
 #             a) open a terminal run : ngrok tcp 10001   
 #             b) open a terminal run : cxserver
-#             c) open a terminal run : client myname    (anything longer than 6 chars will be cut to size) 
-#             wait for anyone else to connect or repeat step c) and talk to yourself or send messages to your other computers
+#          9) Start up cxclient
+#             open a terminal run : client myname    (anything longer than 6 chars will be cut to size) 
+#             wait for anyone else to connect or repeat this step with a different username and talk to
+#             yourself or send messages to your other computers.
 #             
 # Note : This system was tested and worked with client connections from 4 continents.   
 #        The cxchat.db is used to keep state and replay the last 50 messages so a new connected client knows whats going on.
-#        This easily can be increased or reduced as desired.
 #        Username is stored in plaintext, usermessages are relayed and stored encrypted using xxtea-nim encryption scheme
 #        Other encryption schemes may be added in the future. 
 #        
-# Compile :   Compile  : nim  --threads:on -d:ssl -d:release -f c cxserver.nim     
+# Compile : nim  --threads:on -d:ssl -d:release -f c cxserver.nim     
 #
 # Application : cxserver.nim     
 # Backend     : sqlite  
-# Last        : 2018-01-01
+# Last        : 2018-01-02
 #
 # Required    : ngrok 
 #               nimble install nimcx 
@@ -43,6 +44,11 @@ import nimcx,cxprotocol
 # 2) terminal 2   : cxserver
 # 3) terminal 3   : cxclient tokyo                 # any name is fine as long as it is max 6 chars long
 # 4) browser      : http://127.0.0.1:4040/status   # to see the ngrok status
+# 
+# 
+# there is a empty cxchat.db provided
+# or create one like so
+# sqlite3 cxchat.db
 # 
 # The sqlite schema used to create the cxchat.db:
 # 
@@ -58,10 +64,19 @@ import nimcx,cxprotocol
 #    db.exec(sql"COMMIT")
 #    db.close()
 
+
+var hlf = """
+  ___ _  _  __   ___  ___ _  _  ___  ___ 
+ |     \/  [__  |___ |__/ |  | |___ |__/ 
+ |___ _/\_ ___] |___ |  \  \/  |___ |  \ 
+                                        
+"""
+
 proc cxwrap(aline:string,wrappos:int = 70,xpos:int=1)  # forward decl
 
-let serverversion = "3.0 sqlite"
+let serverversion = "3.3 sqlite"
 var cxchatdb = gethomedir() & "/.cxchat/cxchat.db"  # or put it where ever you want
+
 
 # this set up assumes that path2 is a gitified directory from which you can
 # make git push requests to a github repo of the same name which you need to set up yourself
@@ -73,6 +88,7 @@ var cxchatdb = gethomedir() & "/.cxchat/cxchat.db"  # or put it where ever you w
 
 # we could create a dir if not existing and pull the repo in 
 var path1 = gethomedir() & ".cxchatconf"
+if dirExists(path1) == false:  newdir(path1)
 var path2 = path1 & "/cryxtemp"
 var path3 = path2 & "/crydata1.txt" 
 
@@ -102,7 +118,7 @@ proc newServer(): Server =
 
 proc `$`(client: Client): string =
   ## Converts a ``Client``'s information into a string.
-  "Client-Id : " & $client.id & " (" & client.netAddr & ")"
+  "Client " & $client.id & " (" & client.netAddr & ")"
 
 proc getClientIds(server: Server):seq[string] =
      # returns all connected/active clientids in a seq              
@@ -125,12 +141,20 @@ proc connectMsg(aclient:string,aservername:string=servername):string =
     result = aclient.split("(")[0] & " connected to " & aservername
     
 proc infoMsg(aclient:string,aservername:string=servername,clientcount:int,clientId:string,activeIds:string):string =    
-    # used to send auto message to clients via sendHello
+    # used to send auto message to clients via sendHello upon new client connection
+    # for debug we can view the connection id of the client
+    # this info is not of much use to the user tough
+    #if clientcount == 1 :
+    #      result = cxpad(spaces(1) & $clientcount & " user online. Your Id: " & clientId,55)   
+    #else:
+    #      result = cxpad(spaces(1) & $clientcount & " users online. Clients " & activeids & " Chat away.",55)  
+    # therefor we only show following
     if clientcount == 1 :
-          result = cxpad("{Status} " & $clientcount & " user online.  Your Id: " & clientId,55)   
+          result = cxpad(spaces(1) & $clientcount & " user. " & $aclient.split("(")[0] & "You are alone. Press <enter> to leave a message." ,55)   
     else:
-          result = cxpad("{Status} " & $clientcount & " users online. Active Id: " & activeids & " Chat away.",55)  
-
+          result = cxpad(spaces(1) & $clientcount & " users online. Chat away.",55)  
+          
+          
 proc histDataMsg(aclient:string,aservername:string=servername,amsg:string):string =        
      # displaying historical data to new connection
      result = amsg
@@ -151,11 +175,12 @@ proc cxwrap(aline:string,wrappos:int = 70,xpos:int=1) =
              printLn(wline.strip(),termwhite,xpos=28)
         
 proc writeport(afile:string) =
-    # we assume a public repository on github 
-    # if you want to use another location accesible by server and client to sync the ngrok port number
-    # then changes need to be made accordingly , dropbox did not work from all location
+    # we assume a public repository on github and free ngrok account (dynamic forwarding port)
+    # if you want to use another location accessible by server and client to sync the ngrok port number
+    # then changes need to be made accordingly , dropbox did not work from all locations
     # a pastebin may or may not work for you.
     # if you have a paid ngrok account with a fixed port this setup may not be required 
+    # and can be hard coded
     var f = system.open(afile,fmWrite)
     f.writeLine(getPortServerside())
     f.close
@@ -394,7 +419,10 @@ proc loop(server: Server, port = port) {.async.} =
     #await sendHello(server,client)   # sends a message to all clients , how to do it like every 3 mins ? 
     
 when isMainModule:
-       
+    
+  cleanScreen()
+  println2(hlf,deepskyblue,styled={stylebright})
+         
   # Initialise a new server.
   hdx(printLnInfoMsg("Cxserver      " ,"cxChat System Server    Version: " & serverversion & " - qqTop 2019  "))
   var server = newServer()

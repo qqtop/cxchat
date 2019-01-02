@@ -6,7 +6,7 @@ import std/wordwrap
 
 const clientversion = "3.3" 
 #  Application : cxclient.nim
-#  Latest      : 2019-01-01
+#  Latest      : 2019-01-02
 #  Usage       : cxclient wuff 
 #  
 #  the server prog writes the ngrok port to a github repo and the client reads it from there
@@ -17,6 +17,14 @@ const clientversion = "3.3"
 var clientstart = epochTime() 
 var shwemojis = 0
 var contrials = 0
+
+var hlf = """
+   ___ _  _  ___ _  _  __  ___ 
+  |     \/  |    |__| |__|  |  
+  |___ _/\_ |___ |  | |  |  |  
+                                                                  
+"""
+
         
 proc clientGetPort(url:string = crydatapath):string = 
      # read content of our file on github to get the ngrok port number
@@ -188,7 +196,7 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
 when isMainModule: 
     
     cleanscreen()
-    decho(2)
+    println2(hlf,truetomato,styled={stylebright})
     cxprintLn(" Cxchat       " & cxpad("cxClient SateSticks V" & clientversion & spaces(23) & "qqTop 2019",63),colgold,slateblue,xpos=1)
     # Ensure that a username was specified.
     if paramCount() < 1:
