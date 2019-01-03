@@ -334,7 +334,7 @@ proc processMessages(server: Server, client: Client) {.async.} =
        let msgparsed = parseMessage(line)
        let auser = msgparsed.username
        let amsg =  msgparsed.message
-       #if amsg.strip() <> "2neSRotwBwc=":  # avoid blanks
+      
        if amsg.strip() <> "":     
           let db = open(cxchatdb, "", "", "")  
           db.exec(sql"INSERT INTO CRYXDATA (CLIENT, MSG) VALUES (?,?)" , auser ,amsg)
@@ -382,7 +382,9 @@ proc loop(server: Server, port = port) {.async.} =
     for qres in db.fastRows(sql"SELECT b.client,b.msg,b.svdate FROM (SELECT r.id,r.svdate,r.client,r.msg FROM cryxdata r ORDER BY r.id DESC LIMIT 50) b ORDER BY b.id ASC"):
         #decho(2)
         #echo qres # for query debug use only
-        if qres[1] <> "2neSRotwBwc=":
+        # get the blankvalue so empty messages will not be forwarded to other clients
+        let blankvalue = decryptFromBase64(qres[1],key).strip()   
+        if blankvalue <> "" :
                 var tempclientnew = $client
                 #needs to be done for sqllite result here    
                 #also need to unpack the cursor to get the data for the histDataMsg
@@ -402,7 +404,7 @@ proc loop(server: Server, port = port) {.async.} =
                 var serverFlowVar3 = spawn histDataMsg(tempclientnew,amsg=histamsg)    # <----
                 var histmsg = createMessageHist(histclient, ^serverFlowVar3)
                 for c in server.clients:
-                    # Only send to new client and not the currentlyt connected ones.
+                    # Only send to new client and not the currently connected ones.
                     if c.id == client.id and c.connected:
                           await c.socket.send(histmsg)
     db.close()

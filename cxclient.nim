@@ -98,7 +98,7 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
           let  msg = getCurrentExceptionMsg()
           echo()
           #printLnErrorMsg("System exception data : " & repr(e).strip() & " with message " & msg.strip())
-          # we also try to break out from here to run 14-15 retrials
+          # we also try to break out from here to run 15 retrials
           inc contrials
           printLnInfoMsg(spaces(6),"Automatic reconnect attempt : " & $contrials & " of " & $contrialsmax)
           sockok=false
