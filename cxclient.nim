@@ -80,7 +80,7 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
   inc contrials
   printLnInfoMsg("Connecting to", cxpad(serverAddr & " Port: " & $serverport.Port,60) ,zippi)
   printLnInfoMsg("Connection   ", cxpad($contrials,60) ,zippi)
-  printLnInfoMsg(spaces(5),cxpad(" Press enter now or if there is no prompt. ",68),yellowgreen)
+  printLnInfoMsg(spaces(5),cxpad(" Press <enter> now or if there is no prompt. ",68),yellowgreen)
   
   # Pause the execution of this procedure until the socket connects to the specified server.
   # or give error msg if server offline

@@ -33,7 +33,7 @@ import nimcx,cxprotocol
 #
 # Application : cxserver.nim     
 # Backend     : sqlite  
-# Last        : 2018-01-02
+# Last        : 2018-01-03
 #
 # Required    : ngrok 
 #               nimble install nimcx 
@@ -150,7 +150,7 @@ proc infoMsg(aclient:string,aservername:string=servername,clientcount:int,client
     #      result = cxpad(spaces(1) & $clientcount & " users online. Clients " & activeids & " Chat away.",55)  
     # therefor we only show following
     if clientcount == 1 :
-          result = cxpad(spaces(1) & $clientcount & " user. " & $aclient.split("(")[0] & "You are alone. Press <enter> to leave a message." ,55)   
+          result = cxpad(spaces(1) & $clientcount & " user. " & $aclient.split("(")[0] & "You are alone. Press <enter> " ,55)   
     else:
           result = cxpad(spaces(1) & $clientcount & " users online. Chat away.",55)  
           
@@ -187,6 +187,14 @@ proc writeport(afile:string) =
     discard chdir(path2)
 
     decho(2) 
+           
+    var z0 = execCmdEx("git stash  ") # we try to stash anything before pulling
+    printBiCol("git stash   ",xpos = 1)
+    cxwrap($z0[0])
+    printBiCol("git stash   ",colLeft=salmon,xpos = 1)
+    cxwrap($z0[1])
+    echo()
+    
     var z = execCmdEx("git pull  ")   # we do a pull command first to 
                                       # check if there where any changes in case the server
                                       # was used on another system
