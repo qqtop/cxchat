@@ -33,14 +33,14 @@ import nimcx,cxprotocol
 #
 # Application : cxserver.nim     
 # Backend     : sqlite  
-# Last        : 2018-01-03
+# Last        : 2018-01-04
 #
 # Required    : ngrok 
 #               nimble install nimcx 
 #
 # Usage example
 # 
-# 1) terminal 1   : ngrok tcp 10001
+# 1) terminal 1   : ngrok tcp 10001                # if you change the port also change port here below 
 # 2) terminal 2   : cxserver
 # 3) terminal 3   : cxclient tokyo                 # any name is fine as long as it is max 6 chars long
 # 4) browser      : http://127.0.0.1:4040/status   # to see the ngrok status
@@ -92,7 +92,7 @@ if dirExists(path1) == false:  newdir(path1)
 var path2 = path1 & "/cryxtemp"
 var path3 = path2 & "/crydata1.txt" 
 
-let port = 10001  # change to whatever you want or is available
+let port = 10001  # change to whatever you want or is available 
 let servername = "Cxserver"
 var lastaction = epochTime()
 var acounter = newCxCounter()
@@ -174,7 +174,7 @@ proc cxwrap(aline:string,wrappos:int = 70,xpos:int=1) =
      for wline in wrapWords(aline.strip(),72).splitLines():
              printLn(wline.strip(),termwhite,xpos=28)
         
-proc writeport(afile:string) =
+proc writeport(afile:string,ngrokport:string) =
     # we assume a public repository on github and free ngrok account (dynamic forwarding port)
     # if you want to use another location accessible by server and client to sync the ngrok port number
     # then changes need to be made accordingly , dropbox did not work from all locations
@@ -182,18 +182,22 @@ proc writeport(afile:string) =
     # if you have a paid ngrok account with a fixed port this setup may not be required 
     # and can be hard coded
     var f = system.open(afile,fmWrite)
-    f.writeLine(getPortServerside())
+    f.writeLine(ngrokport)
     f.close
     discard chdir(path2)
 
     decho(2) 
-           
-    var z0 = execCmdEx("git stash  ") # we try to stash anything before pulling
-    printBiCol("git stash   ",xpos = 1)
-    cxwrap($z0[0])
-    printBiCol("git stash   ",colLeft=salmon,xpos = 1)
-    cxwrap($z0[1])
-    echo()
+
+#     # experimental git stash if testing server on several system and the same git repo
+#     # git does it's thing but sometimes it fails
+#     # best is to restart ngrok , cxserver  and then see if everything connects with the cxclient.
+#     #           
+#     var z0 = execCmdEx("git stash  ") # we try to stash anything before pulling
+#     printBiCol("git stash   ",xpos = 1)
+#     cxwrap($z0[0])
+#     printBiCol("git stash   ",colLeft=salmon,xpos = 1)
+#     cxwrap($z0[1])
+#     echo()
     
     var z = execCmdEx("git pull  ")   # we do a pull command first to 
                                       # check if there where any changes in case the server
@@ -244,12 +248,12 @@ proc sendHello(server: Server, client: Client) {.async.} =
                  
      # write some info on the server terminal if there is something new to report        
      if (clientcount == 0) and (lastmsg != nobody):         
-        printLnStatusMsg(line & cxnow & nobody) 
+        printLnStatusMsg(cxpad(line & cxnow & nobody,55)) 
         lastmsg = nobody 
         
      # send message to connected clients unless last message was the same as new message   
      elif (clientcount > 0) and (lastmsg != "  Users online : " & $clientcount):
-        printLnStatusMsg(line & cxnow & "  Users online : " & $clientcount)
+        printLnStatusMsg(cxpad(line & cxnow & "  Users online : " & $clientcount,55))
         lastmsg = "  Users online : " & $clientcount
         activeids = ""
         let gci = getClientIds(server)
@@ -309,7 +313,7 @@ proc processMessages(server: Server, client: Client) {.async.} =
     # Pause execution of this procedure until a line of data is received from ``client``.
     var line = await client.socket.recvLine() # The ``recvLine`` procedure returns ``""`` (i.e. a string of length 0) when ``client`` has disconnected.
     if line.len == 0:
-       printLnInfoMsg("Disconnected   ", $client & " at " & cxnow,truetomato)
+       printLnInfoMsg("Disconnected",cxpad($client & " at " & cxnow,51),truetomato)
        tempclient = $client
        client.connected = false
        # When a socket disconnects it must be closed.
@@ -334,6 +338,12 @@ proc processMessages(server: Server, client: Client) {.async.} =
        let msgparsed = parseMessage(line)
        let auser = msgparsed.username
        let amsg =  msgparsed.message
+       
+       # at this stage we have the client username in auser and client id in client.id
+       # this would allow us to remember and send a better disconnected message to remaining users
+       # actually saying who left ...
+       # this could be saved into a structure Like activeusers = @[(id,username)] 
+       # or an in memory database . Maybe the latter is better .
       
        if amsg.strip() <> "":     
           let db = open(cxchatdb, "", "", "")  
@@ -363,7 +373,7 @@ proc loop(server: Server, port = port) {.async.} =
   while true:
     # Pause execution of this procedure until a new connection is accepted.
     let (netAddr, clientSocket) = await server.socket.acceptAddr()
-    printLnInfoMsg("Connection from",netAddr & " at " & cxnow,yellowgreen)
+    printLnInfoMsg("Connection  ",cxpad(netAddr & " at " & cxnow,51),yellowgreen)
     
     # we remember the id count
     var oldclientscount = server.clients.len
@@ -431,15 +441,24 @@ proc loop(server: Server, port = port) {.async.} =
 when isMainModule:
     
   cleanScreen()
+  decho(2)
   println2(hlf,deepskyblue,styled={stylebright})
          
   # Initialise a new server.
-  hdx(printLnInfoMsg("Cxserver      " ,"cxChat System Server    Version: " & serverversion & " - qqTop 2019  "))
+  hdx(printLnInfoMsg("CXCHAT" ,"  System Server        Version: " & serverversion & " - qqTop 2019  "))
   var server = newServer()
-  printLnStatusMsg(cxpad("Server initialised!  ",55))
-  printLnStatusMsg(cxpad("Processing ports ... ",55))
+  var ngrokport = ""
+  printLnStatusMsg(cxpad("cxServer initialised!  ",55))
   try:
-    writeport(path3)
+     ngrokport = getPortServerside()
+  except OSError:
+     printLnErrorMsg("  Try to run : ngrok tcp $1 in a new terminal first ! " % $port)
+     doFinish()
+     
+  printLnStatusMsg(cxpad("Connection via : 0.tcp.ap.ngrok.io:" & ngrokport,55))
+  printLnStatusMsg(cxpad("Processing port for cxclient ... ",55))
+  try:
+    writeport(path3,ngrokport)
   except:
     printLnErrorMsg("  Try to run : ngrok tcp $1 in a new terminal first ! " % $port)
     doFinish()

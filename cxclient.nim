@@ -6,7 +6,7 @@ import std/wordwrap
 
 const clientversion = "3.3" 
 #  Application : cxclient.nim
-#  Latest      : 2019-01-02
+#  Latest      : 2019-01-04
 #  Usage       : cxclient wuff 
 #  
 #  the server prog writes the ngrok port to a github repo and the client reads it from there
@@ -45,18 +45,18 @@ proc clientGetPort(url:string = crydatapath):string =
 proc showEmojis() = 
      # using ejm3 from cxconsts.nim
      echo()
-     printLnInfoMsg(gold & cxpad("Emojis" & ivory,19),"Copy emoji you want to use and paste it into your text line." & spaces(5),colLeft=pastelblue,xpos = 1)                 
+     printLnInfoMsg(gold & cxpad("Emojis" & ivory,19),"Copy emoji you want to use and paste it into your text line.   " & spaces(5),colLeft=pastelblue,xpos = 1)                 
      var ejm:string = ""
-     for x in 0..21: ejm = ejm & ejm3[x] & " "
+     for x in 0..22: ejm = ejm & ejm3[x] & " "
      printLnInfoMsg(gold & cxpad("Emojis" & ivory,19),strip(ejm),colLeft=pastelblue,xpos = 1) 
      ejm = ""
-     for x in 22..43: ejm = ejm & ejm3[x] & " "
+     for x in 23..45: ejm = ejm & ejm3[x] & " "
      printLnInfoMsg(gold & cxpad("Emojis" & ivory,19),strip(ejm),colLeft=pastelblue,xpos = 1)
      let ejml = ejm.len
      ejm = ""
-     for x in 44..ejm3.len: ejm = ejm & ejm3[x] & " "
+     for x in 46..ejm3.len: ejm = ejm & ejm3[x] & " "
      ejm = ejm & hand & " " & errorsymbol & "  "
-     printLnInfoMsg(gold & cxpad("Emojis" & ivory,19),cxpad(ejm,ejml - 7),colLeft=pastelblue,xpos = 1)
+     printLnInfoMsg(gold & cxpad("Emojis" & ivory,19),cxpad(ejm,ejml - 9),colLeft=pastelblue,xpos = 1)
      echo()        
      
                
@@ -152,10 +152,10 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
               if pm.contains("disconnected from Cxserver"):  
                  printLnInfoMsg(cxpad(parsed.username & "[S]" & lightslategray & spaces(1) & crynow & pastelwhite,20), pm,colLeft=truetomato,colRight=pastelpink,xpos = 1)
               elif pm.contains("connected to Cxserver"):
-                 printLnInfoMsg(cxpad(parsed.username & "[S]" & lightslategray & spaces(1) & crynow & pastelGreen,25), pm,colLeft=turquoise,colRight=pastelgreen,xpos = 1)
+                 printLnInfoMsg(cxpad(parsed.username & "[S]" & lightslategray & spaces(1) & crynow & pastelBlue,25), pm,colLeft=turquoise,colRight=pastelgreen,xpos = 1)
               else:
                  if parsed.username.contains(chatname) :
-                    printLnInfoMsg(cxpad(parsed.username & "[S]" & lightslategray & spaces(1) & crynow & pastelgreen,20), pm ,colLeft=orchid,colRight=pastelgreen,xpos = 1)
+                    printLnInfoMsg(cxpad(parsed.username & "[S]" & lightslategray & spaces(1) & crynow & pastelBlue,20), pm ,colLeft=orchid,colRight=pastelgreen,xpos = 1)
                  else:
                     if (decryptFromBase64(parsed.message,key)).strip() == "" :   # do not show any blank lines from incoming messages to keepy display tidy
                        discard
@@ -181,7 +181,8 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
                                 else:
                                    printLnInfoMsg(lightsalmon & cxpad(parsed.username & "[C]" & ivory,21),swpm[xwpm],colLeft=pastelblue,xpos = 1)   
                            else:   
-                             printLnInfoMsg(lightsalmon & cxpad(parsed.username & "[C]" & lightslategray & spaces(1) & crynow & ivory,21),strip(pm),colLeft=pastelblue,xpos = 1)
+                              printLnInfoMsg(lightsalmon & cxpad(parsed.username & "[C]" & lightslategray & spaces(1) & crynow & ivory,21),strip(pm),colLeft=pastelblue,xpos = 1)
+                                                                                
         except:
             discard
   else:        
