@@ -11,7 +11,7 @@
  ![Image](http://qqtop.github.io/cxserver.png?raw=true)
  
 
- ![Image](http://qqtop.github.io/cxserver.png?raw=true)
+ ![Image](http://qqtop.github.io/cxclient.png?raw=true)
  
 
  Installation and requirements see cxserver.nim and cxprotocol.nim
