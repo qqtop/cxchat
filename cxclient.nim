@@ -17,6 +17,7 @@ const clientversion = "3.3"
 var clientstart = epochTime() 
 var shwemojis = 0
 var contrials = 0
+var sessionhead = 0
 
 var hlf = """
    ___ _  _  ___ _  _  __  ___ 
@@ -44,7 +45,7 @@ proc clientGetPort(url:string = crydatapath):string =
                          
 proc showEmojis() = 
      # using ejm3 from cxconsts.nim
-     echo()
+     #echo()
      printLnInfoMsg(gold & cxpad("Emojis" & ivory,19),"Copy emoji you want to use and paste it into your text line.   " & spaces(5),colLeft=pastelblue,xpos = 1)                 
      var ejm:string = ""
      for x in 0..22: ejm = ejm & ejm3[x] & " "
@@ -57,13 +58,13 @@ proc showEmojis() =
      for x in 46..ejm3.len: ejm = ejm & ejm3[x] & " "
      ejm = ejm & hand & " " & errorsymbol & "  "
      printLnInfoMsg(gold & cxpad("Emojis" & ivory,19),cxpad(ejm,ejml - 9),colLeft=pastelblue,xpos = 1)
-     echo()        
+            
      
                
 proc doPrompt(username:string) =
      # a switch to showemojis only once before the second prompt
-     if shwemojis < 2: 
-       if shwemojis == 1: showEmojis()
+     if shwemojis < 3: 
+       if shwemojis == 2: showEmojis()
      inc shwemojis
      printInfoMsg(yellowgreen & cxpad(username & "[C]" & lightslategray & spaces(1) & cxDateTime() & pastelblue,20),"",colLeft=pastelblue,colRight=black,xpos = 1)
      curBk()  
@@ -78,9 +79,9 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
   let contrialsmax = 15  # change this to control reconnection attempts
   var sockok=false
   inc contrials
-  printLnInfoMsg("Connecting to", cxpad(serverAddr & " Port: " & $serverport.Port,60) ,zippi)
-  printLnInfoMsg("Connection   ", cxpad($contrials,60) ,zippi)
-  printLnInfoMsg(spaces(5),cxpad(" Press <enter> now or if there is no prompt. ",68),yellowgreen)
+  printLnInfoMsg("Connecting to", cxpad(serverAddr & " Port: " & $serverport.Port,61) ,zippi)
+  printLnInfoMsg("Attempt      ", cxpad($contrials,61) ,zippi)
+  printLnInfoMsg("Connect      ",cxpad("Press <enter> now or if there is no prompt. ",61),zippi)
   
   # Pause the execution of this procedure until the socket connects to the specified server.
   # or give error msg if server offline
@@ -89,6 +90,7 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
       try:  
           await socket.connect(serverAddr,serverport.Port)
           sockok=true
+          await sleepAsync(1000) # triggers
           
       except Exception:
           
@@ -105,24 +107,26 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
           await sleepAsync(10000)         
 
       if sockok == false and contrials == contrialsmax :
-        printLnInfoMsg(spaces(6),"All auto reconnect attempts failed , restart client manually to see if cxserver can be reached")
-        doFinish()  
+          printLnInfoMsg(spaces(6),"All auto reconnect attempts failed , restart client manually to see if cxserver can be reached")
+          doFinish()  
          
   if sockok == true:  
       # all ok lets go
-      let wmsg0 = cxpad("Welcome user " & gold & "  " & username & "  " & termwhite & " --> You are now connected to Cxserver !    ",84)
-      printLnOkMsg(wmsg0)
-      let wmsg1 = cxpad("via " & pastelpink & rightarrow & termwhite & spaces(1) & $serveraddr & ":" & $serverport & "  since " & ($now()).replace("T"," "),93)
-      printLnOkMsg(cxpad(wmsg1,(wmsg0.len)))
-      echo()
-      printLnInfoMsg("Notes",cxpad(" Username is truncated if longer than 6 chars",68),yellowgreen)
-      printLnInfoMsg(spaces(5),cxpad(" [H] indicates historical data. Up to 50 recent messages are shown",68),yellowgreen)
-      printLnInfoMsg(spaces(5),cxpad(" This cxclient may timeout and disconnect every 5-10 minutes",68),yellowgreen)
-      printLnInfoMsg(spaces(5),cxpad(" Keep calm ! Do not panic ! It will AutoRestart ! ",68),lavender)
-      echo()
-      printLnInfoMsg(spaces(5),cxpad(" Have Fun !",68),pink)
-      showEmojis()
-      decho(3)
+      if sessionhead == 0:
+          let wmsg0 = cxpad(" Welcome user " & gold & "  " & username & "  " & termwhite & " --> You are now connected to Cxserver !     ",87)
+          printLnInfoMsg("Ok   ",wmsg0)
+          let wmsg1 = " via " & rightarrow & termwhite & spaces(1) & $serveraddr & ":" & $serverport & "  since " & ($now()).replace("T"," ")
+          printLnInfoMsg("Ok   ",cxpad(wmsg1,76))
+          #echo()
+          printLnInfoMsg("Notes",cxpad(" Username is truncated if longer than 6 chars",69),yellowgreen)
+          printLnInfoMsg(spaces(5),cxpad(" [H] indicates historical data. Up to 50 recent messages are shown",69),yellowgreen)
+          printLnInfoMsg(spaces(5),cxpad(" This cxclient may timeout and disconnect every 5-10 minutes",69),yellowgreen)
+          printLnInfoMsg(spaces(5),cxpad(" Keep calm ! Do not panic ! It will AutoRestart ! ",69),lightpink)
+          #echo()
+          printLnInfoMsg(spaces(5),cxpad(" Have Fun !",69),lightpink)
+          showEmojis()
+          decho(3)
+          sessionhead = 1
       while true:
         # Pause the execution of this procedure until a new message is received from the server.
         try:
@@ -136,8 +140,9 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
           if pm == "" or pm.len == 0:
                var onlinetime = epochTime() - clientstart
                echo()
+               printLnFailMsg("Connection failure ")
                printLnInfoMsg(red & cxpad(spaces(5) & lightslategray & spaces(1) & crynow & ivory,20), "Online for " & $onlinetime & " secs" ,colLeft=pastelblue,xpos = 1)
-               printLnInfoMsg(pink & cxpad(spaces(5) & lightslategray & spaces(1) & crynow & ivory,20), "Client is restarting ... ",colLeft=pastelblue,xpos = 1)
+               printLnInfoMsg(pink & cxpad(spaces(5) & lightslategray & spaces(1) & crynow & ivory,20), "Client attempts to restart now  ...... ",colLeft=pastelblue,xpos = 1)
                # restart works now
                close(socket) # close anything hanging around
                var socket = newAsyncSocket()
@@ -147,7 +152,8 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
                asyncCheck connect(socket, serverAddr,serverport,username)
                break  # leave this loop
                
-          if pm <> "" and pm.len > 0: 
+          if pm <> "" and pm.len > 0:
+              contrials = 0 # reset the counter as we are connected
               pm = pm.strip()
               if pm.contains("disconnected from Cxserver"):  
                  printLnInfoMsg(cxpad(parsed.username & "[S]" & lightslategray & spaces(1) & crynow & pastelwhite,20), pm,colLeft=truetomato,colRight=pastelpink,xpos = 1)
@@ -198,7 +204,7 @@ when isMainModule:
     
     cleanscreen()
     println2(hlf,truetomato,styled={stylebright})
-    cxprintLn(" Cxchat       " & cxpad("cxClient SateSticks V" & clientversion & spaces(23) & "qqTop 2019",63),colgold,slateblue,xpos=1)
+    cxprintLn(" Cxchat       " & cxpad("cxClient SateSticks V" & clientversion & spaces(23) & "qqTop 2019",64),colgold,slateblue,xpos=1)
     # Ensure that a username was specified.
     if paramCount() < 1:
         # Terminate the client early with an error message if there was no username specified.

@@ -118,7 +118,7 @@ proc newServer(): Server =
 
 proc `$`(client: Client): string =
   ## Converts a ``Client``'s information into a string.
-  "Client " & $client.id & " (" & client.netAddr & ")"
+  "Client " & $c#result = cxpad(spaces(1) & $clientcount & " user. " & $aclient.split("(")[0] & "You are alone. Press <enter> " ,55)   lient.id & " (" & client.netAddr & ")"
 
 proc getClientIds(server: Server):seq[string] =
      # returns all connected/active clientids in a seq              
@@ -148,9 +148,11 @@ proc infoMsg(aclient:string,aservername:string=servername,clientcount:int,client
     #      result = cxpad(spaces(1) & $clientcount & " user online. Your Id: " & clientId,55)   
     #else:
     #      result = cxpad(spaces(1) & $clientcount & " users online. Clients " & activeids & " Chat away.",55)  
-    # therefor we only show following
+    #      #result = cxpad(spaces(1) & $clientcount & " user. " & $aclient.split("(")[0] & "You are alone. Press <enter> " ,55)   
+    # therefore we only show following
     if clientcount == 1 :
-          result = cxpad(spaces(1) & $clientcount & " user. " & $aclient.split("(")[0] & "You are alone. Press <enter> " ,55)   
+          
+          result = cxpad(spaces(1) & $clientcount & " user. You are alone. Press <enter> " ,55)        
     else:
           result = cxpad(spaces(1) & $clientcount & " users online. Chat away.",55)  
           
