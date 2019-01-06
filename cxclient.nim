@@ -76,7 +76,7 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
   ## Then receives messages from the server continuously.
   #echo("Connecting to ", serverAddr)
   
-  let contrialsmax = 15  # change this to control reconnection attempts
+  let contrialsmax = 50  # change this to control reconnection attempts
   var sockok=false
   inc contrials
   printLnInfoMsg("Connecting to", cxpad(serverAddr & " Port: " & $serverport.Port,61) ,zippi)
@@ -147,13 +147,13 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
                close(socket) # close anything hanging around
                var socket = newAsyncSocket()
                # wait a bit to have things settle down
-               await sleepAsync(10)
+               await sleepAsync(1000)
                # Execute the ``connect`` procedure in the background asynchronously.
                asyncCheck connect(socket, serverAddr,serverport,username)
                break  # leave this loop
                
           if pm <> "" and pm.len > 0:
-              contrials = 0 # reset the counter as we are connected
+              
               pm = pm.strip()
               if pm.contains("disconnected from Cxserver"):  
                  printLnInfoMsg(cxpad(parsed.username & "[S]" & lightslategray & spaces(1) & crynow & pastelwhite,20), pm,colLeft=truetomato,colRight=pastelpink,xpos = 1)
@@ -177,6 +177,7 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
                        else:  
                            # now display msgs from other clients
                            # experimental longline handling, tw = terminalwidth
+                           
                            if strip(pm).len > tw - 34: 
                              # we got a long line 
                              var wpm = wrapWords(strip(pm),(tw - 35))
