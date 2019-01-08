@@ -4,10 +4,10 @@ import nimcx
 import std/wordwrap
 
 
-const clientversion = "3.3" 
+const clientversion = "3.5" 
 #  Application : cxclient.nim
-#  Latest      : 2019-01-04
-#  Usage       : cxclient wuff 
+#  Latest      : 2019-01-08
+#  Usage       : cxclient wuff   # you could use an emoji 😇 as user name too
 #  
 #  the server prog writes the ngrok port to a github repo and the client reads it from there
 #  client restarts itself if a disconnect occurs , just press enter to get a new prompt
@@ -138,11 +138,11 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
           # Display the message to the user.
           var pm = decryptFromBase64(parsed.message,key)
           if pm == "" or pm.len == 0:
-               var onlinetime = epochTime() - clientstart
+               var onlinetime = initduration(seconds = int(epochtime()) - int(clientstart))
                echo()
-               printLnFailMsg("Connection failure ")
-               printLnInfoMsg(red & cxpad(spaces(5) & lightslategray & spaces(1) & crynow & ivory,20), "Online for " & $onlinetime & " secs" ,colLeft=pastelblue,xpos = 1)
-               printLnInfoMsg(pink & cxpad(spaces(5) & lightslategray & spaces(1) & crynow & ivory,20), "Client attempts to restart now  ...... ",colLeft=pastelblue,xpos = 1)
+               printLnFailMsg("Disconnection . ")
+               printLnInfoMsg(crynow,"Online for " & $onlinetime ,colLeft=pastelblue,xpos = 1)
+               printLnInfoMsg(crynow,"Client attempts to restart now ... ",colLeft=pastelblue,xpos = 1)
                # restart works now
                close(socket) # close anything hanging around
                var socket = newAsyncSocket()

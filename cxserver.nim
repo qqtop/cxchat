@@ -33,7 +33,7 @@ import nimcx,cxprotocol
 #
 # Application : cxserver.nim     
 # Backend     : sqlite  
-# Last        : 2018-01-04
+# Last        : 2018-01-08
 #
 # Required    : ngrok 
 #               nimble install nimcx 
@@ -64,6 +64,7 @@ import nimcx,cxprotocol
 #    db.exec(sql"COMMIT")
 #    db.close()
 
+let serverversion = "3.5 sqlite"
 
 var hlf = """
   ___ _  _  __   ___  ___ _  _  ___  ___ 
@@ -71,12 +72,13 @@ var hlf = """
  |___ _/\_ ___] |___ |  \  \/  |___ |  \ 
                                         
 """
+type Tcondata = (int,string)
 
 proc cxwrap(aline:string,wrappos:int = 70,xpos:int=1)  # forward decl
 
-let serverversion = "3.3 sqlite"
 var cxchatdb = gethomedir() & "/.cxchat/cxchat.db"  # or put it where ever you want
-
+var condata:Tcondata
+var sessioncon = newSeq[Tcondata]()
 
 # this set up assumes that path2 is a gitified directory from which you can
 # make git push requests to a github repo of the same name which you need to set up yourself
@@ -118,7 +120,7 @@ proc newServer(): Server =
 
 proc `$`(client: Client): string =
   ## Converts a ``Client``'s information into a string.
-  "Client " & $c#result = cxpad(spaces(1) & $clientcount & " user. " & $aclient.split("(")[0] & "You are alone. Press <enter> " ,55)   lient.id & " (" & client.netAddr & ")"
+  "Client " & $client.id & " (" & client.netAddr & ")"
 
 proc getClientIds(server: Server):seq[string] =
      # returns all connected/active clientids in a seq              
@@ -137,8 +139,11 @@ proc noNews(aservername:string=servername,acounterval:int):string =
         # maybe we can splice in some news like exchange rate or top new from the guardian or something
         result = "Currently no news from " & aservername & " No.: " & $acounterval   
     
-proc connectMsg(aclient:string,aservername:string=servername):string =
-    result = aclient.split("(")[0] & " connected to " & aservername
+proc connectMsg(aclient:string,aservername:string=servername,cusr:string = ""):string =
+    let clid = aclient.split("(")[0]
+    result = clid & "  " & cusr & " connected to " & aservername
+    
+       
     
 proc infoMsg(aclient:string,aservername:string=servername,clientcount:int,clientId:string,activeIds:string):string =    
     # used to send auto message to clients via sendHello upon new client connection
@@ -151,7 +156,6 @@ proc infoMsg(aclient:string,aservername:string=servername,clientcount:int,client
     #      #result = cxpad(spaces(1) & $clientcount & " user. " & $aclient.split("(")[0] & "You are alone. Press <enter> " ,55)   
     # therefore we only show following
     if clientcount == 1 :
-          
           result = cxpad(spaces(1) & $clientcount & " user. You are alone. Press <enter> " ,55)        
     else:
           result = cxpad(spaces(1) & $clientcount & " users online. Chat away.",55)  
@@ -315,38 +319,76 @@ proc processMessages(server: Server, client: Client) {.async.} =
     # Pause execution of this procedure until a line of data is received from ``client``.
     var line = await client.socket.recvLine() # The ``recvLine`` procedure returns ``""`` (i.e. a string of length 0) when ``client`` has disconnected.
     if line.len == 0:
-       printLnInfoMsg("Disconnected",cxpad($client & " at " & cxnow,51),truetomato)
-       tempclient = $client
+       # before closing we remove client.id from sessioncon
+       let curclid = client.id
+       var curclusr = "" 
+       var removeid = -1
+       for x in 0..<sessioncon.len:
+           if sessioncon[x][0] == curclid:
+                curclusr = sessioncon[x][1]
+                removeid = x
+                break
+       # removing in the loop fails so we try here
+       if removeid >= 0:
+           try:    
+              sessioncon.delete(removeid)
+           except RangeError:         
+              printLnInfoMsg("Attention",cxpad("RangeError SE100 thrown at " & cxnow,51),truetomato)
+              printLnInfoMsg("Sessioncon",$sessioncon,truetomato)
+              #sessioncon = @[]
+          
+       if curclusr.len > 1:   
+           printLnInfoMsg("Disconnected",cxpad("Client : " & $curclid & cxlpad(curclusr,7) & " at " & cxnow,51),truetomato)
+           tempclient = "Client " & $curclid & cxlpad(curclusr,7)
+       else:
+           # should not happen but still does ??? 
+           printLnInfoMsg("Disconnected",cxpad("Client : " & $curclid & " at " & cxnow,51),truetomato) 
+           tempclient = "Client " & $curclid & " no recent activity "
+           
        client.connected = false
        # When a socket disconnects it must be closed.
        client.socket.close()
+       await sleepAsync(200)  # let things settle down
        # dissconnect message block sends the information message of a disconnect to all other live clients
        var serverFlowVar = spawn disconnectMsg(tempclient)
        var bmsg = createMessage(chatname, ^serverFlowVar)
        tempclient = ""
        for c in server.clients:
-          # Don't send it to the client that sent this or to a client that is disconnected.
-              if c.id != client.id and c.connected:
-                 await c.socket.send(bmsg)
+              # Don't send it to the client that sent this or to a client that is disconnected.
+                  if c.id != client.id and c.connected:
+                     await c.socket.send(bmsg)
        return 
        # end of disconnect message block  
-        
+      
     else:    
-       # Display the message that was sent by the client undecoded.
+       # Display the encrypted message that was sent by the client .
+       echo()
        printlnBiCol($client & " sent: " & line,xpos = 1)
-       # we keep state now , there is an issue with long lines which are not saved into the database 
-       # for some reasons , maybe has todo with the end of line chars ... hmmmm
-       
+       # we keep state now 
+              
        let msgparsed = parseMessage(line)
        let auser = msgparsed.username
        let amsg =  msgparsed.message
        
-       # at this stage we have the client username in auser and client id in client.id
-       # this would allow us to remember and send a better disconnected message to remaining users
-       # actually saying who left ...
-       # this could be saved into a structure Like activeusers = @[(id,username)] 
-       # or an in memory database . Maybe the latter is better .
-      
+       var scaddflag = true      
+       condata = (client.id,auser)
+       # we only add to sessioncon if not added prev.
+       for sccon in 0 ..< sessioncon.len:
+           if sessioncon[sccon] == condata:
+               scaddflag = false
+       if scaddflag == true:
+          sessioncon.add(condata)      # adding condata here means now we can check sessioncon to see who is online
+       printLnBicol("Sessioncon Last : " & auser & spaces(6) & $client.id,xpos = 1)
+       # for debug
+       #printLnBicol("Sessioncon : " & $sessioncon,colLeft=cyan,xpos=1)
+       printLnBicol("Sessioncon Live : Recently active out of " & $getClientCount(server) & " connected users",colLeft=cyan,xpos = 1)
+       try:
+         for sc in 0 ..< sessioncon.len:
+            printLnBiCol("ID " & $sessioncon[sc][0] & " : " & sessioncon[sc][1],xpos=3)
+       except:
+            printLnBicol("Sessioncon : " & $sessioncon,colLeft=red,xpos=1)
+            discard
+                   
        if amsg.strip() <> "":     
           let db = open(cxchatdb, "", "", "")  
           db.exec(sql"INSERT INTO CRYXDATA (CLIENT, MSG) VALUES (?,?)" , auser ,amsg)
@@ -391,7 +433,7 @@ proc loop(server: Server, port = port) {.async.} =
     server.clients.add(client)
     # now we want to send the last 50 records to the new client only
     let db = open(cxchatdb, "", "", "")
-    for qres in db.fastRows(sql"SELECT b.client,b.msg,b.svdate FROM (SELECT r.id,r.svdate,r.client,r.msg FROM cryxdata r ORDER BY r.id DESC LIMIT 50) b ORDER BY b.id ASC"):
+    for qres in db.fastRows(sql"SELECT b.client,b.msg,b.svdate FROM (SELECT r.id,r.svdate,r.client,r.msg FROM cryxdata r ORDER BY r.id DESC LIMIT 10) b ORDER BY b.id ASC"):
         #decho(2)
         #echo qres # for query debug use only
         # get the blankvalue so empty messages will not be forwarded to other clients
@@ -423,9 +465,15 @@ proc loop(server: Server, port = port) {.async.} =
     
     # here we try to inform the others in case there was a new connection 
     if oldclientscount < server.clients.len:   # if true then someone must have connected to the server
-         var serverFlowVar2 = spawn connectMsg($client)
+        
+         var cusr = ""
+         for x in 0 ..< sessioncon.len:
+            if sessioncon[x][0] == client.id:
+                cusr = sessioncon[x][1] # hopefully we get the name
+        
+         var serverFlowVar2 = spawn connectMsg($client,cusr=cusr)
          var cmsg = createMessage(chatname, ^serverFlowVar2)
-         
+                         
          for c in server.clients:
          # Don't send it to the client that sent this or to a client that is disconnected.
              if c.id != client.id and c.connected:
