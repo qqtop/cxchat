@@ -6,7 +6,7 @@ import std/wordwrap
 
 const clientversion = "3.5" 
 #  Application : cxclient.nim
-#  Latest      : 2019-01-08
+#  Latest      : 2019-01-09
 #  Usage       : cxclient wuff   # you could use an emoji 😇 as user name too
 #  
 #  the server prog writes the ngrok port to a github repo and the client reads it from there

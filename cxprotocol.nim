@@ -1,17 +1,19 @@
 # cxprotocol.nim
 # part of cxchat
 # 
-# Last : 2019-01-01
+# Last : 2019-01-09
 # 
 # the keyfile used for encryption/decryption is called niip.wsx and currently must be in
 # <homedir>/.cxchat . This directory is automatically created the keyfile must be provided
 # by the cxserver admin to the cxclient user. It is a plaintext file with any number of random chars.
 # 
-import nimcx
+
 import base64
+import nimcx
+
 
 # change this accordingly to reach your github repo
-let githubrepo = ""   # name of your github account here
+let githubrepo = ""   # <---- name of your github account here
 let crydatapath* = "https://raw.githubusercontent.com/" & githubrepo & "/cryxtemp/master/crydata1.txt"
 
 if githubrepo == "":

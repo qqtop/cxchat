@@ -1,5 +1,6 @@
 import asyncdispatch, asyncnet,threadpool,db_sqlite
-import nimcx,cxprotocol
+import cxprotocol
+import nimcx
 
 # cxchat - A very private chat application for the linux terminal
 #          run the cxserver on your small left over pc 
@@ -33,7 +34,7 @@ import nimcx,cxprotocol
 #
 # Application : cxserver.nim     
 # Backend     : sqlite  
-# Last        : 2018-01-08
+# Last        : 2018-01-09
 #
 # Required    : ngrok 
 #               nimble install nimcx 
@@ -79,6 +80,7 @@ proc cxwrap(aline:string,wrappos:int = 70,xpos:int=1)  # forward decl
 var cxchatdb = gethomedir() & "/.cxchat/cxchat.db"  # or put it where ever you want
 var condata:Tcondata
 var sessioncon = newSeq[Tcondata]()
+let histreplaycount = "15"
 
 # this set up assumes that path2 is a gitified directory from which you can
 # make git push requests to a github repo of the same name which you need to set up yourself
@@ -87,12 +89,10 @@ var sessioncon = newSeq[Tcondata]()
 # github was selected because it is available from most countries, while dropbox may not work.
 # Other possibilities would be updateable pastebin location , your cloud location etc
 # 
-
-# we could create a dir if not existing and pull the repo in 
-var path1 = gethomedir() & ".cxchatconf"
+var path1 = gethomedir() & ".cxchatconf"         # this dir will hold the the gitified cryxtemp dir
 if dirExists(path1) == false:  newdir(path1)
-var path2 = path1 & "/cryxtemp"
-var path3 = path2 & "/crydata1.txt" 
+var path2 = path1 & "/cryxtemp"                  # this is the cloned dir
+var path3 = path2 & "/crydata1.txt"              # this is where the temporary connection port is stored
 
 let port = 10001  # change to whatever you want or is available 
 let servername = "Cxserver"
@@ -219,7 +219,7 @@ proc writeport(afile:string,ngrokport:string) =
     cxwrap($z[1])
     echo()
     z = execCmdEx("git add .")
-    printBiCol("git add .    ",xpos = 1)
+    printBiCol("git import nimcxadd .    ",xpos = 1)
     cxwrap($z[0])
     printBiCol("git add .    ",colLeft=salmon,xpos = 1)
     cxwrap($z[1])
@@ -433,7 +433,7 @@ proc loop(server: Server, port = port) {.async.} =
     server.clients.add(client)
     # now we want to send the last 50 records to the new client only
     let db = open(cxchatdb, "", "", "")
-    for qres in db.fastRows(sql"SELECT b.client,b.msg,b.svdate FROM (SELECT r.id,r.svdate,r.client,r.msg FROM cryxdata r ORDER BY r.id DESC LIMIT 10) b ORDER BY b.id ASC"):
+    for qres in db.fastRows(sql"SELECT b.client,b.msg,b.svdate FROM (SELECT r.id,r.svdate,r.client,r.msg FROM cryxdata r ORDER BY r.id DESC LIMIT ?) b ORDER BY b.id ASC" , histreplaycount) :
         #decho(2)
         #echo qres # for query debug use only
         # get the blankvalue so empty messages will not be forwarded to other clients
