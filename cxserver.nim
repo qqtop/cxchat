@@ -34,7 +34,7 @@ import nimcx
 #
 # Application : cxserver.nim     
 # Backend     : sqlite  
-# Last        : 2018-01-09
+# Last        : 2018-01-11
 #
 # Required    : ngrok 
 #               nimble install nimcx 
@@ -87,7 +87,13 @@ let histreplaycount = "15"
 # the github repo will be used to store the file crydata1.txt which contains the connection port
 # required to have the cxclient connect to your server
 # github was selected because it is available from most countries, while dropbox may not work.
-# Other possibilities would be updateable pastebin location , your cloud location etc
+# Other possibilities would be updateable pastebin location , your cloud location or a payed ngrok account etc
+# 
+# future expansion might include a self talking bot 
+# so that humans to not have to waste time doing pesty chats.
+# or server push messages on certain cues received from a client
+# 
+# 
 # 
 var path1 = gethomedir() & ".cxchatconf"         # this dir will hold the the gitified cryxtemp dir
 if dirExists(path1) == false:  newdir(path1)
@@ -133,16 +139,15 @@ proc getClientIds(server: Server):seq[string] =
      
              
 proc disconnectMsg(aclient:string,aservername:string=servername):string =
-    result = aclient.split("(")[0] & " disconnected from " & aservername  
+    result = strip(aclient.split("(")[0]) & spaces(1) & truetomato & " Disconnected ! "
     
 proc noNews(aservername:string=servername,acounterval:int):string = 
-        # maybe we can splice in some news like exchange rate or top new from the guardian or something
-        result = "Currently no news from " & aservername & " No.: " & $acounterval   
+    # maybe we can splice in some news like exchange rate or top new from the guardian or something
+    result = "Currently no news from " & aservername & " No.: " & $acounterval   
     
 proc connectMsg(aclient:string,aservername:string=servername,cusr:string = ""):string =
     let clid = aclient.split("(")[0]
-    result = clid & "  " & cusr & " connected to " & aservername
-    
+    result = clid & "  " & cusr & yellowgreen & " Connected ! " 
        
     
 proc infoMsg(aclient:string,aservername:string=servername,clientcount:int,clientId:string,activeIds:string):string =    
@@ -195,7 +200,7 @@ proc writeport(afile:string,ngrokport:string) =
     decho(2) 
 
 #     # experimental git stash if testing server on several system and the same git repo
-#     # git does it's thing but sometimes it fails
+#     # git does it's thing but sometimes it fails , you always can delete the dir and git clone your repo again 
 #     # best is to restart ngrok , cxserver  and then see if everything connects with the cxclient.
 #     #           
 #     var z0 = execCmdEx("git stash  ") # we try to stash anything before pulling
@@ -306,8 +311,9 @@ proc sleepAlways(server: Server, client: Client)  {.async.} =
         
 proc sleepKadang(server: Server, client: Client)  {.async.} =    
     while true: 
-      await sleepAsync(50000)          # wait 50 secs       
-      await sendNews(server,client)    # send stuff if there is someone to send to
+      await sleepAsync(60000)          # wait a 60 minute     
+    if sessioncon.len > 0:    
+       await sendNews(server,client)    # send stuff if there is someone to send to
      
      
 proc processMessages(server: Server, client: Client) {.async.} =
@@ -451,7 +457,7 @@ proc loop(server: Server, port = port) {.async.} =
                 var histdata = " "
                 #echo histdate," ",histclient , decryptFromBase64(histamsg,key).strip()    # for debug use only
                 if histamsg.len > 0:
-                   histdata = histdate & " --> " & decryptFromBase64(histamsg,key).strip()  
+                   histdata = histdate & " --> " & decryptFromBase64(histamsg,key).strip(false,true)  
                 else:
                    histdata = histdate & " --> nil"             
                 histamsg = encryptToBase64(histdata,key) 
@@ -481,7 +487,7 @@ proc loop(server: Server, port = port) {.async.} =
     
     # send a message to all clients giving connection status
     asyncCheck sleepAlways(server,client)  
-    #asyncCheck sleepKadang(server,client)  # tested works almost ok 
+    asyncCheck sleepKadang(server,client)  # tested works almost ok 
 
     # Run the ``processMessages`` procedure asynchronously in the background,
     # this procedure will continuously check for new messages from the client.
@@ -493,7 +499,25 @@ when isMainModule:
   cleanScreen()
   decho(2)
   println2(hlf,deepskyblue,styled={stylebright})
-         
+
+  # we only store last 500 records , on server startup this maintenance delete query will be run
+  
+  let keeplast500 = sql"""DELETE FROM cryxdata
+  WHERE id <= (
+    SELECT id
+    FROM (
+      SELECT id
+      FROM cryxdata    
+	  ORDER BY id DESC
+      LIMIT 1 OFFSET 500 
+    ) foo
+  )
+  """   
+  
+  let db = open(cxchatdb, "", "", "")
+  db.exec(keeplast500)
+  db.close() 
+  
   # Initialise a new server.
   hdx(printLnInfoMsg("CXCHAT" ,"  System Server        Version: " & serverversion & " - qqTop 2019  "))
   var server = newServer()
