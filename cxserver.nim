@@ -34,7 +34,7 @@ import nimcx
 #
 # Application : cxserver.nim     
 # Backend     : sqlite  
-# Last        : 2018-01-11
+# Last        : 2018-01-12
 #
 # Required    : ngrok 
 #               nimble install nimcx 
@@ -90,7 +90,7 @@ let histreplaycount = "15"
 # Other possibilities would be updateable pastebin location , your cloud location or a payed ngrok account etc
 # 
 # future expansion might include a self talking bot 
-# so that humans to not have to waste time doing pesty chats.
+# so that humans do not have to waste time doing pesty chats.
 # or server push messages on certain cues received from a client
 # 
 # 
@@ -102,7 +102,8 @@ var path3 = path2 & "/crydata1.txt"              # this is where the temporary c
 
 let port = 10001  # change to whatever you want or is available 
 let servername = "Cxserver"
-var lastaction = epochTime()
+var serverTimer  = newCxtimer("cxServerTimer")
+var lastsu = epochTime()
 var acounter = newCxCounter()
 
 type
@@ -291,7 +292,7 @@ proc sendNews(server: Server, client: Client) {.async.} =
         acounter.add                 
         var serverFlowVar = spawn noNews(servername,acounterval = acounter.value)
         let bmsg = createMessage(chatname, ^serverFlowVar)
-        var nc = 1   # a counter to limt the message sending   --> this now works
+        var nc = 1   # a counter to limit the message sending   --> this now works
         for c in server.clients:
           # Don't send it to the client that sent this or to a client that is disconnected.
           if c.connected and nc <= getClientCount(server):
@@ -309,13 +310,20 @@ proc sleepAlways(server: Server, client: Client)  {.async.} =
         await sendHello(server,client)  # now send the message
         
         
-proc sleepKadang(server: Server, client: Client)  {.async.} =    
+proc sleepKadang(server: Server, client: Client) {.async.} =    
     while true: 
-      await sleepAsync(60000)          # wait a 60 minute     
+      await sleepAsync(60000)          # wait 6 minute     
     if sessioncon.len > 0:    
        await sendNews(server,client)    # send stuff if there is someone to send to
      
-     
+proc sleepServerUptime(server: Server) {.async.} =    
+    # experimental to show serveruptime on server terminal in regular intervals using async
+    while true: 
+       if (epochTime() - lastsu) > 60.0:
+          printLnBiCol("cxServer Uptime : " & $initduration(seconds = int(lapTimer(serverTimer))),colLeft = skyBlue,xpos = 1)
+          lastsu = epochTime() 
+       await sleepAsync(50000)          # wait 5 minute  
+       
 proc processMessages(server: Server, client: Client) {.async.} =
   ## Loops while ``client`` is connected to this server, and checks
   ## whether a message has been received from ``client``.
@@ -391,10 +399,12 @@ proc processMessages(server: Server, client: Client) {.async.} =
        try:
          for sc in 0 ..< sessioncon.len:
             printLnBiCol("ID " & $sessioncon[sc][0] & " : " & sessioncon[sc][1],xpos=3)
+            
        except:
             printLnBicol("Sessioncon : " & $sessioncon,colLeft=red,xpos=1)
             discard
-                   
+       printLnBiCol("cxServer Uptime : " & $initduration(seconds = int(lapTimer(serverTimer))),colLeft = pink,xpos = 1)
+                    
        if amsg.strip() <> "":     
           let db = open(cxchatdb, "", "", "")  
           db.exec(sql"INSERT INTO CRYXDATA (CLIENT, MSG) VALUES (?,?)" , auser ,amsg)
@@ -488,14 +498,14 @@ proc loop(server: Server, port = port) {.async.} =
     # send a message to all clients giving connection status
     asyncCheck sleepAlways(server,client)  
     asyncCheck sleepKadang(server,client)  # tested works almost ok 
-
     # Run the ``processMessages`` procedure asynchronously in the background,
     # this procedure will continuously check for new messages from the client.
     asyncCheck processMessages(server, client)
     #await sendHello(server,client)   # sends a message to all clients , how to do it like every 3 mins ? 
+    asyncCheck sleepServerUptime(server)         # write local
     
 when isMainModule:
-    
+  serverTimer.startTimer  
   cleanScreen()
   decho(2)
   println2(hlf,deepskyblue,styled={stylebright})

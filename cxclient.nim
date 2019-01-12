@@ -5,7 +5,7 @@ import std/wordwrap
 
 const clientversion = "3.5" 
 #  Application : cxclient.nim
-#  Latest      : 2019-01-11
+#  Latest      : 2019-01-12
 #  Usage       : cxclient wuff   # you could use an emoji 😇 as user name too
 #  
 #  the cxserver prog writes the ngrok port to a github repo and the client reads it from there
@@ -50,20 +50,19 @@ proc clientGetPort(url:string = crydatapath):string =
 proc showEmojis() = 
      # using ejm3 from cxconsts.nim
      #echo()
-     printLnInfoMsg(gold & cxpad("Emojis" & ivory,19),"Copy emoji you want to use and paste it into your text line.   " & spaces(5),colLeft=pastelblue,xpos = 1)                 
+     printLnInfoMsg(gold & "Emojis  " & ivory,"Copy emoji you want to use and paste it into your text line." & spaces(8),colLeft=pastelblue,xpos = 1)                 
      var ejm:string = ""
      for x in 0..22: ejm = ejm & ejm3[x] & " "
-     printLnInfoMsg(gold & cxpad("Emojis" & ivory,19),strip(ejm),colLeft=pastelblue,xpos = 1) 
+     printLnInfoMsg(gold & "Emoji   " & ivory,strip(ejm),colLeft=pastelblue,xpos = 1) 
      ejm = ""
      for x in 23..45: ejm = ejm & ejm3[x] & " "
-     printLnInfoMsg(gold & cxpad("Emojis" & ivory,19),strip(ejm),colLeft=pastelblue,xpos = 1)
+     printLnInfoMsg(gold & "Emoji   " & ivory,strip(ejm),colLeft=pastelblue,xpos = 1)
      let ejml = ejm.len
      ejm = ""
      for x in 46..<ejm3.len: ejm = ejm & ejm3[x] & " "
-     ejm = ejm & hand & " " & errorsymbol & "  "
-     printLnInfoMsg(gold & cxpad("Emojis" & ivory,19),cxpad(ejm,ejml - 9),colLeft=pastelblue,xpos = 1)
-            
-     
+     ejm = ejm & hand & " " & errorsymbol & "  " & leftarrow & "  " & rightarrow & "  " & uparrow & "  " & downarrow
+     printLnInfoMsg(gold & "Emoji   " & ivory,cxpad(ejm,ejml - 8),colLeft=pastelblue,xpos = 1)
+               
                
 proc doPrompt(username:string) =
      # a switch to showemojis only once before the second prompt
@@ -86,9 +85,9 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
   var cspace = 61
   if contrials > 1: cspace = 40
         
-  printLnInfoMsg("Connecting to", cxpad(serverAddr & " Port: " & $serverport.Port,cspace) ,zippi)
-  printLnInfoMsg("Attempt      ", cxpad($contrials & " of " & $contrialsmax,cspace) ,zippi)
-  printLnInfoMsg("Connect      ", cxpad("Press <enter> now or if no prompt. ",cspace),zippi)
+  printLnInfoMsg("Connecting to", cxpad(serverAddr & " Port: " & $serverport.Port,cspace),yellow)
+  printLnInfoMsg("Attempt      ", cxpad($contrials & " of " & $contrialsmax,cspace),pastelblue)
+  printLnInfoMsg("Connect      ", cxpad("Press <enter> now or if no prompt. ",cspace),pastelblue)
 
   # Pause the execution of this procedure until the socket connects to the specified server.
   # or give error msg if server offline
@@ -128,11 +127,10 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
           #echo()
           printLnInfoMsg("Notes",cxpad(" Username is truncated if longer than 6 chars",69),yellowgreen)
           printLnInfoMsg(spaces(5),cxpad(" [H] indicates historical data. Up to 15 recent messages are shown",69),yellowgreen)
-          printLnInfoMsg(spaces(5),cxpad(" This cxclient may timeout and disconnect every 5-10 minutes",69),yellowgreen)
+          printLnInfoMsg("😅😅 ",cxpad(" This cxclient may timeout and disconnect every 5-10 minutes",69),yellowgreen)
           printLnInfoMsg(spaces(5),cxpad(" Keep calm ! Do not panic ! It will try to restart " & $contrialsmax & " times ! ",69),lightpink)
-          #echo()
-          printLnInfoMsg(spaces(5),cxpad(" Have Fun !",69),lightpink)
-          showEmojis()
+          printLnInfoMsg("😀😀 ",cxpad(" Have Fun !",69),lightpink)
+          #showEmojis()  # show it only once for the second prompt
           decho(3)
           sessionhead = 1
       while true:
@@ -149,7 +147,7 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
                    var onlinetime = initduration(seconds = int(epochtime()) - int(clientstart))
                    echo()
                    printLnFailMsg("Disconnection . ")
-                   var onl = "Online for " & $onlinetime 
+                   let onl = "Online for " & $onlinetime 
                    printLnInfoMsg(crynow,onl,colLeft=pastelblue,xpos = 1)
                    printLnInfoMsg(crynow,cxpad("Client attempts to restart now ... ",onl.len),colLeft=pastelblue,xpos = 1)
                    # restart works now
