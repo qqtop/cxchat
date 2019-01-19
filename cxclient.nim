@@ -5,7 +5,7 @@ import std/wordwrap
 
 const clientversion = "3.5" 
 #  Application : cxclient.nim
-#  Latest      : 2019-01-12
+#  Latest      : 2019-01-18
 #  Usage       : cxclient wuff   # you could use an emoji 😇 as user name too
 #  
 #  the cxserver prog writes the ngrok port to a github repo and the client reads it from there
@@ -14,7 +14,8 @@ const clientversion = "3.5"
 #  Longline handling is at least attempted and copy/paste code snippets are 
 #  transferred with correct indentation.
 #  
-#  Find the contrialsmax var below to set the restart attempts. Default is 100 which should last abt 8 hours.
+#  Find the contrialsmax var below to set the restart attempts.
+#  Default is 10000 which should last abt 30 days.
 #  
 #  Compile  : nim  --threads:on -d:ssl -d:release -f c cxclient.nim
      
@@ -79,7 +80,7 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
   ## Then receives messages from the server continuously.
   #echo("Connecting to ", serverAddr)
   
-  let contrialsmax = 100  # change this to control reconnection or auto restart attempts
+  let contrialsmax = 10000  # change this to control reconnection or auto restart attempts
   var sockok = false
   inc contrials
   var cspace = 61
