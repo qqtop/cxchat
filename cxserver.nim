@@ -322,7 +322,7 @@ proc sleepServerUptime(server: Server) {.async.} =
        if (epochTime() - lastsu) > 60.0:
           printLnBiCol("cxServer Uptime : " & $initduration(seconds = int(lapTimer(serverTimer))),colLeft = skyBlue,xpos = 1)
           lastsu = epochTime() 
-       await sleepAsync(50000)          # wait 5 minute  
+       await sleepAsync(50000)          # wait a bit  
        
 proc processMessages(server: Server, client: Client) {.async.} =
   ## Loops while ``client`` is connected to this server, and checks
