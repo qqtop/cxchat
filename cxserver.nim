@@ -8,25 +8,26 @@ import nimcx
 #          
 # Setup :  
 #          1) For the server presented here you need a github account and ngrok (https://ngrok.com/) 
+#             ngrok is used to pass messages through Nat firewalls.
 #          2) On github create a new empty repo and name it : cryxtemp 
-#          3) In your home dir 2 hidden folders will be created
+#          3) In your home directory 2 hidden folders will be created when you run the cxserver the first time.
 #               .cxchat
 #               .cxchatconf       
 #          4) Create a file named niip.wsx to be used for encryption/decryption , fill it with    
 #             any number of random chars and save it into the .cxchat folder 
-#          5) Copy the provided cxchat.db or create one as below and save it into the .cxchat folder
+#          5) Copy the provided empty cxchat.db or create one as below and save it into the .cxchat folder
 #          6) Change into your .cxchatconf folder and git clone your cryxtemp repo here which you created in step 2 above.
 #          7) Share the niip.wsx and compiled cxclient executable with anyone you allow to connect.
 #          8) Start up cxserver:
 #             a) open a terminal run : ngrok tcp 10001   
 #             b) open a terminal run : cxserver
 #          9) Start up cxclient
-#             open a terminal run : client myname    (anything longer than 6 chars will be cut to size) 
+#             open a terminal run : cxclient myname    (anything longer than 6 chars will be cut to size) 
 #             wait for anyone else to connect or repeat this step with a different username and talk to
 #             yourself or send messages to your other computers.
 #             
-# Note : This system was tested and worked with client connections from 4 continents.   
-#        The cxchat.db is used to keep state and replay the last 50 messages so a new connected client knows whats going on.
+# Note : This system was tested and worked with cxclient connections from 4 continents.   
+#        The cxchat.db is used to keep state and replay the last 15 messages so a new connected cxclient knows whats going on.
 #        Username is stored in plaintext, usermessages are relayed and stored encrypted using xxtea-nim encryption scheme
 #        Other encryption schemes may be added in the future. 
 #        
@@ -34,7 +35,7 @@ import nimcx
 #
 # Application : cxserver.nim     
 # Backend     : sqlite  
-# Last        : 2018-01-12
+# Last        : 2019-02-06
 #
 # Required    : ngrok 
 #               nimble install nimcx 
@@ -65,7 +66,7 @@ import nimcx
 #    db.exec(sql"COMMIT")
 #    db.close()
 
-let serverversion = "3.5 sqlite"
+let serverversion = "3.6 sqlite"
 
 var hlf = """
   ___ _  _  __   ___  ___ _  _  ___  ___ 
@@ -86,9 +87,9 @@ let histreplaycount = "15"
 # make git push requests to a github repo of the same name which you need to set up yourself
 # the github repo will be used to store the file crydata1.txt which contains the connection port
 # required to have the cxclient connect to your server
-# github was selected because it is available from most countries, while dropbox may not work.
+# github was selected because it is available from most countries we tested , while dropbox was blocked.
 # Other possibilities would be updateable pastebin location , your cloud location or a payed ngrok account etc
-# 
+#  
 # future expansion might include a self talking bot 
 # so that humans do not have to waste time doing pesty chats.
 # or server push messages on certain cues received from a client
