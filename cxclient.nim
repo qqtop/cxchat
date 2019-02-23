@@ -3,12 +3,12 @@ import cxprotocol,threadpool
 import nimcx
 import std/wordwrap
 
-const clientversion = "3.6" 
+const clientversion = "3.8" 
 #  Application : cxclient.nim
-#  Latest      : 2019-02-05
-#  Usage       : cxclient wuff   # you could use an emoji 😇 as user name too
+#  Latest      : 2019-02-23
+#  Usage       : cxclient eagle1   # you could use an emoji 😇 as user name too
 #  
-#  the cxserver prog writes the ngrok port to a github repo and the client reads it from there
+#  the cxserver prog writes the dynamic ngrok port to a github repo and the client reads it from there
 #  client restarts itself if a disconnect occurs , just press enter to get a new prompt
 #  if the client connection fails or flickers errormessages then the server is down.
 #  Longline handling is at least attempted and copy/paste code snippets are 
@@ -50,7 +50,6 @@ proc clientGetPort(url:string = crydatapath):string =
                          
 proc showEmojis() = 
      # using ejm3 from cxconsts.nim
-     #echo()
      printLnInfoMsg(gold & "Emojis  " & ivory,"Copy emoji you want to use and paste it into your text line." & spaces(8),colLeft=pastelblue,xpos = 1)                 
      var ejm:string = ""
      for x in 0..22: ejm = ejm & ejm3[x] & " "
@@ -66,12 +65,14 @@ proc showEmojis() =
                
                
 proc doPrompt(username:string) =
-     # a switch to showemojis only once before the second prompt
-     if shwemojis < 3: 
-         if shwemojis == 2: showEmojis()
+     # a switch to showemojis only once before the first prompt
+     if shwemojis < 2: 
+         if shwemojis == 1: 
+             showEmojis()
+             echo()
          inc shwemojis
      
-     printInfoMsg(yellowgreen & cxpad(username & "[C]" & lightslategray & spaces(1) & cxDateTime() ,20),"",colLeft=pastelblue,colRight=black,xpos = 1)
+     printInfoMsg(cxpad(lightslategray & cxDateTime() & pastelBlue & "]" & bblack & spaces(1) & yellowgreen & username & "[C]",20),"",colLeft=yellowgreen,colRight=black,xpos = 1)
      curFw()  
      print(cleareol)
      
@@ -103,7 +104,7 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
           
       except Exception:
           printLnErrorMsg("Cxserver can not be reached. Maybe offline. Try again later.    ")
-          printLnInfoMsg(spaces(6),"Try this : cxclient turtle                                  ")
+          printLnInfoMsg(spaces(6),"Try this : cxclient eagle1                                ")
           echo()
           # for debug
           #let  e = getCurrentException()
@@ -114,7 +115,7 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
           inc contrials
           printLnInfoMsg(spaces(6),"Automatic reconnect attempt : " & $contrials & " of " & $contrialsmax)
           sockok=false
-          await sleepAsync(10000)         
+          await sleepAsync(10000)   # spacing the retrials      
 
       if sockok == false and contrials == contrialsmax :
           printLnInfoMsg(spaces(6),"All auto reconnect attempts exhausted. Restart cxclient manually .")
@@ -136,13 +137,12 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
           decho(3)
           sessionhead = 1
       while true:
-        # Pause the execution of this procedure until a new message is received from the server.
         try:
-          
+              # Pause the execution of this procedure until a new message is received from the server.
               let line = await socket.recvLine()
               # Parse the received message using ``parseMessage`` defined in the cxprotocol.nim
               let parsed = parseMessage(line)  
-              let crynow = cxDateTime() 
+              let crynow = cxDateTime() & "]" 
               # Display the message to the user.
               var pm = decryptFromBase64(parsed.message,key)
               if pm == "" or pm.len == 0:
@@ -163,39 +163,66 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
               if pm <> "" and pm.len > 0:
                   pm = pm.strip(false,true)
                   if pm.contains("disconnected from Cxserver"):  
-                     printLnInfoMsg(cxpad(parsed.username & "[S]" & lightslategray & spaces(1) & crynow,20),pastelwhite & pm,colLeft=truetomato,colRight=pastelpink,xpos = 1)
+                     printLnInfoMsg(cxpad(lightslategray & crynow & spaces(1) & parsed.username & "[S]",20),pastelwhite & pm,colLeft=truetomato,colRight=pastelpink,xpos = 1)
+                     
                   elif pm.contains("connected to Cxserver"):
-                     printLnInfoMsg(cxpad(parsed.username & "[S]" & lightslategray & spaces(1) & crynow,25),pastelBlue & pm,colLeft=turquoise,colRight=pastelgreen,xpos = 1)
+                     printLnInfoMsg(cxpad(lightslategray & crynow & spaces(1) & parsed.username & "[S]",25),pastelBlue & pm,colLeft=turquoise,colRight=pastelgreen,xpos = 1)
                   else:
                      if parsed.username.contains(chatname) :
-                        printLnInfoMsg(cxpad(parsed.username & "[S]" & lightslategray & spaces(1) & crynow,20),pastelBlue & pm ,colLeft=orchid,colRight=pastelgreen,xpos = 1)
+                        printLnInfoMsg(cxpad(lightslategray & crynow & spaces(1) & parsed.username & "[S]",20),pastelBlue & pm ,colLeft=orchid,colRight=pastelgreen,xpos = 1)
                      else:
                         if (decryptFromBase64(parsed.message,key)).strip() == "" :   # do not show any blank lines from incoming messages to keepy display tidy
                            discard
                         else:
+                           let cclcolor = whiteSmoke  
                            if parsed.username.contains("[H]"):
                                # display historical msgs 
                                let apm = pm.split("-->")[0].strip()
                                let apm2 = pm.split("-->")[1].strip(false,true)
+                               
                                if parsed.username.startswith(username):
-                                     printLnInfoMsg(yellowgreen & cxpad(parsed.username & lightslategray & spaces(1) & apm ,32),pastelwhite & apm2,colLeft=pastelblue,xpos = 1)
+                                     if strip(pm,false,true).len < tw - 35: 
+                                        printLnInfoMsg(cxpad(lightslategray & apm & "]" & yellowgreen & spaces(1) & parsed.username,32),pastelwhite & apm2,colLeft=pastelblue,xpos = 1)
+                                     else: 
+                                        # we got a long line 
+                                         var wpm1 = wrapWords(strip(apm2,false,true),(tw - 37))
+                                         var swpm1 = wpm1.splitLines()
+                                         for xwpm1 in 0 .. swpm1.len - 1:
+                                             if xwpm1 == 0:
+                                                  printLnInfoMsg(cxpad(lightslategray & apm & "]" & yellowgreen & spaces(1) & parsed.username ,32),pastelwhite & spaces(2) & swpm1[xwpm1],colLeft=pastelblue,xpos = 1)
+                                             else:
+                                                  printLnInfoMsg(cxpad(yellowgreen & parsed.username,12),cclcolor & spaces(2) & swpm1[xwpm1],colLeft=pastelblue,xpos = 22)                                   
+                                      
+                                      
                                else:
-                                     printLnInfoMsg(lightsalmon & cxpad(parsed.username & lightslategray & spaces(1) & apm ,32),pastelwhite & apm2,colLeft=pastelblue,xpos = 1)
+                                     if strip(pm,false,true).len < tw - 35: 
+                                         printLnInfoMsg(cxpad(lightslategray & apm & "]" & lightsalmon & spaces(1) & parsed.username,32),pastelwhite & apm2,colLeft=pastelblue,xpos = 1)
+                                     else: 
+                                         # we got a long line 
+                                         var wpm2 = wrapWords(strip(apm2,false,true),(tw - 37))
+                                         var swpm2 = wpm2.splitLines()
+                                         for xwpm2 in 0 .. swpm2.len - 1:
+                                             if xwpm2 == 0:
+                                                  printLnInfoMsg(cxpad(lightslategray & apm & "]" & lightsalmon & spaces(1) & parsed.username ,32),pastelwhite & spaces(2) & swpm2[xwpm2],colLeft=pastelblue,xpos = 1)
+                                             else:
+                                                  printLnInfoMsg(cxpad(lightsalmon & parsed.username,12),cclcolor & spaces(2) & swpm2[xwpm2],colLeft=pastelblue,xpos = 22)                                   
+
+                                     
                            else:  
                                # display current msgs from other clients
-                               # experimental longline handling, tw = terminalwidth
-                               let cclcolor = peachpuff
-                               if strip(pm,false,true).len > tw - 34: 
+                               # longline handling, tw = terminalwidth
+                               
+                               if strip(pm,false,true).len > tw - 35: 
                                  # we got a long line 
                                  var wpm = wrapWords(strip(pm,false,true),(tw - 35))
                                  var swpm = wpm.splitLines()
-                                 for xwpm in 0 ..< swpm.len:
+                                 for xwpm in 0 .. swpm.len - 1:
                                     if xwpm == 0:
-                                       printLnInfoMsg(lightsalmon & cxpad(parsed.username & "[C]" & lightslategray & spaces(1) & crynow,32),cclcolor & spaces(1) & swpm[xwpm],colLeft=pastelblue,xpos = 1)
+                                       printLnInfoMsg(cxpad(lightslategray & crynow & bblack & spaces(1) & lightsalmon & parsed.username & "[C]",32), spaces(2) & cclcolor & swpm[xwpm],colLeft=lightsalmon,colRight = bblack,xpos = 1)
                                     else:
-                                       printLnInfoMsg(lightsalmon & cxpad(parsed.username & "[C]",21),cclcolor & spaces(1) & swpm[xwpm],colLeft=pastelblue,xpos = 32)   
+                                       printLnInfoMsg(cxpad(lightsalmon & parsed.username & "[C]",12), spaces(2) & cclcolor & swpm[xwpm],colLeft=pastelblue,xpos = 22)                                   
                                else:  
-                                    printLnInfoMsg(lightsalmon & cxpad(parsed.username & "[C]" & lightslategray & spaces(1) & crynow,32),cclcolor & spaces(1) & strip(pm,false,true),colLeft=pastelblue,xpos = 1)
+                                    printLnInfoMsg(cxpad(lightslategray & crynow & bblack & spaces(1) & lightsalmon & parsed.username & "[C]",32), spaces(1) & cclcolor & strip(pm,false,true),colLeft=lightsalmon,colRight = bblack,xpos = 1)
         except:
             discard
   else:        
@@ -239,7 +266,7 @@ when isMainModule:
     # Execute the ``readInput`` procedure in the background in a new thread.
     # The Hello message will only be shown once per logon
     var messageFlowVar = spawn "Hello. I am online now !" & stdin.readLine()   # encryption done in protocol
-    
+
     while true:
           # Check if the ``readInput`` procedure returned a new line of input.
           if messageFlowVar.isReady():
@@ -251,11 +278,11 @@ when isMainModule:
              asyncCheck socket.send(createMessage(username, ^messageFlowVar))
              # Execute the ``readInput`` procedure again, in the background in a new thread.
              messageFlowVar = spawn stdin.readLine()
-                                    
+
           # Execute the asyncdispatch event loop, to continue the execution of asynchronous procedures.
-          asyncDispatch.poll(50) 
-         
-    asyncCheck connect(socket, serverAddr,serverport,username)
+          asyncDispatch.poll(30) 
+
+    asyncCheck connect(socket,serverAddr,serverport,username)
     runForever()
      
 # end of cxclient.nim
