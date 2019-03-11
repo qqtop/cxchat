@@ -8,26 +8,25 @@ import nimcx
 #          
 # Setup :  
 #          1) For the server presented here you need a github account and ngrok (https://ngrok.com/) 
-#             ngrok is used to pass messages through Nat firewalls.
 #          2) On github create a new empty repo and name it : cryxtemp 
-#          3) In your home directory 2 hidden folders will be created when you run the cxserver the first time.
+#          3) In your home dir 2 hidden folders will be created
 #               .cxchat
 #               .cxchatconf       
 #          4) Create a file named niip.wsx to be used for encryption/decryption , fill it with    
 #             any number of random chars and save it into the .cxchat folder 
-#          5) Copy the provided empty cxchat.db or create one as below and save it into the .cxchat folder
+#          5) Copy the provided cxchat.db or create one as below and save it into the .cxchat folder
 #          6) Change into your .cxchatconf folder and git clone your cryxtemp repo here which you created in step 2 above.
 #          7) Share the niip.wsx and compiled cxclient executable with anyone you allow to connect.
 #          8) Start up cxserver:
 #             a) open a terminal run : ngrok tcp 10001   
-#             b) open a terminal run : cxserver
+#             b) open a terminal run : cxserver port_number_given_in_ngrok_terminal
 #          9) Start up cxclient
-#             open a terminal run : cxclient myname    (anything longer than 6 chars will be cut to size) 
+#             open a terminal run : client myname    (anything longer than 6 chars will be cut to size) 
 #             wait for anyone else to connect or repeat this step with a different username and talk to
 #             yourself or send messages to your other computers.
 #             
-# Note : This system was tested and worked with cxclient connections from 4 continents.   
-#        The cxchat.db is used to keep state and replay the last 15 messages so a new connected cxclient knows whats going on.
+# Note : This system was tested and worked with client connections from 4 continents.   
+#        The cxchat.db is used to keep state and replay the last 50 messages so a new connected client knows whats going on.
 #        Username is stored in plaintext, usermessages are relayed and stored encrypted using xxtea-nim encryption scheme
 #        Other encryption schemes may be added in the future. 
 #        
@@ -35,7 +34,7 @@ import nimcx
 #
 # Application : cxserver.nim     
 # Backend     : sqlite  
-# Last        : 2019-02-06
+# Last        : 2019-03-11
 #
 # Required    : ngrok 
 #               nimble install nimcx 
@@ -43,7 +42,7 @@ import nimcx
 # Usage example
 # 
 # 1) terminal 1   : ngrok tcp 10001                # if you change the port also change port here below 
-# 2) terminal 2   : cxserver
+# 2) terminal 2   : cxserver port_as_given_by_ngrok
 # 3) terminal 3   : cxclient tokyo                 # any name is fine as long as it is max 6 chars long
 # 4) browser      : http://127.0.0.1:4040/status   # to see the ngrok status
 # 
@@ -66,7 +65,7 @@ import nimcx
 #    db.exec(sql"COMMIT")
 #    db.close()
 
-let serverversion = "3.6 sqlite"
+let serverversion = "3.5 sqlite"
 
 var hlf = """
   ___ _  _  __   ___  ___ _  _  ___  ___ 
@@ -87,9 +86,9 @@ let histreplaycount = "15"
 # make git push requests to a github repo of the same name which you need to set up yourself
 # the github repo will be used to store the file crydata1.txt which contains the connection port
 # required to have the cxclient connect to your server
-# github was selected because it is available from most countries we tested , while dropbox was blocked.
+# github was selected because it is available from most countries, while dropbox may not work.
 # Other possibilities would be updateable pastebin location , your cloud location or a payed ngrok account etc
-#  
+# 
 # future expansion might include a self talking bot 
 # so that humans do not have to waste time doing pesty chats.
 # or server push messages on certain cues received from a client
@@ -171,17 +170,8 @@ proc infoMsg(aclient:string,aservername:string=servername,clientcount:int,client
 proc histDataMsg(aclient:string,aservername:string=servername,amsg:string):string =        
      # displaying historical data to new connection
      result = amsg
-          
-proc getPortServerside(url:string = "http://127.0.0.1:4040/status"):string =
-  # gets the port from where ngrok runs to be written to gist or a file
-  result = ""
-  let client = newHttpClient()
-  let zcontent = client.getContent(url)
-  for line in zcontent.splitLines():
-     if line.contains("0.tcp.ap.ngrok.io:"):
-        var l2 = line.split("o:")[1]
-        var l3 = l2.split("""\",""")
-        result = l3[0]
+
+proc getPortServerside():string = paramStr(1)
  
 proc cxwrap(aline:string,wrappos:int = 70,xpos:int=1) =
      for wline in wrapWords(aline.strip(),72).splitLines():
@@ -226,7 +216,7 @@ proc writeport(afile:string,ngrokport:string) =
     cxwrap($z[1])
     echo()
     z = execCmdEx("git add .")
-    printBiCol("git import nimcxadd .    ",xpos = 1)
+    printBiCol("git import add .    ",xpos = 1)
     cxwrap($z[0])
     printBiCol("git add .    ",colLeft=salmon,xpos = 1)
     cxwrap($z[1])
@@ -323,7 +313,7 @@ proc sleepServerUptime(server: Server) {.async.} =
        if (epochTime() - lastsu) > 60.0:
           printLnBiCol("cxServer Uptime : " & $initduration(seconds = int(lapTimer(serverTimer))),colLeft = skyBlue,xpos = 1)
           lastsu = epochTime() 
-       await sleepAsync(50000)          # wait a bit  
+       await sleepAsync(50000)          # wait 5 minutes or apparently whatever the scheduler likes  
        
 proc processMessages(server: Server, client: Client) {.async.} =
   ## Loops while ``client`` is connected to this server, and checks
@@ -533,13 +523,16 @@ when isMainModule:
   hdx(printLnInfoMsg("CXCHAT" ,"  System Server        Version: " & serverversion & " - qqTop 2019  "))
   var server = newServer()
   var ngrokport = ""
-  printLnStatusMsg(cxpad("cxServer initialised!  ",55))
+  
   try:
      ngrokport = getPortServerside()
-  except OSError:
+  except :
+     printLnErrorMsg("  The ngrok port not specified. cxserver ngrokport       ") 
      printLnErrorMsg("  Try to run : ngrok tcp $1 in a new terminal first ! " % $port)
+     printLnFailMsg("  cxserver could not be initialized.                     ")
      doFinish()
      
+  printLnStatusMsg(cxpad("cxServer initialised!  ",55))   
   printLnStatusMsg(cxpad("Connection via : 0.tcp.ap.ngrok.io:" & ngrokport,55))
   printLnStatusMsg(cxpad("Processing port for cxclient ... ",55))
   try:
