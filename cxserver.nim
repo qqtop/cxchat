@@ -34,7 +34,7 @@ import nimcx
 #
 # Application : cxserver.nim     
 # Backend     : sqlite  
-# Last        : 2019-03-11
+# Last        : 2019-04-08
 #
 # Required    : ngrok 
 #               nimble install nimcx 
@@ -64,8 +64,14 @@ import nimcx
 #                  
 #    db.exec(sql"COMMIT")
 #    db.close()
+#    
+#    for networking issues see
+#    sudo netstat -tupna |grep cxserver
+#    sudo netstat -tupna |grep cxclient
+#    
+#    
 
-let serverversion = "3.5 sqlite"
+let serverversion = "3.6 sqlite"
 
 var hlf = """
   ___ _  _  __   ___  ___ _  _  ___  ___ 
@@ -164,7 +170,7 @@ proc infoMsg(aclient:string,aservername:string=servername,clientcount:int,client
     if clientcount == 1 :
           result = cxpad(spaces(1) & $clientcount & " user. You are alone. Press <enter> " ,55)        
     else:
-          result = cxpad(spaces(1) & $clientcount & " users online. Chat away.",55)  
+          result = cxpad(spaces(1) & $clientcount & " users online. Press <Enter> to chat away.",55)  
           
           
 proc histDataMsg(aclient:string,aservername:string=servername,amsg:string):string =        
