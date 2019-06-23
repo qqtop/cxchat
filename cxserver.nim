@@ -15,29 +15,31 @@ import nimcx
 #          4) Create a file named niip.wsx to be used for encryption/decryption , fill it with    
 #             any number of random chars and save it into the .cxchat folder 
 #          5) Copy the provided cxchat.db or create one as below and save it into the .cxchat folder
-#          6) Change into your .cxchatconf folder and git clone your cryxtemp repo here which you created in step 2 above.
+#          6) Change into your .cxchatconf folder and git clone your cryxtemp repo which you created in step 2 above.
 #          7) Share the niip.wsx and compiled cxclient executable with anyone you allow to connect.
 #          8) Start up cxserver:
 #             a) open a terminal run : ngrok tcp 10001   
 #             b) open a terminal run : cxserver port_number_given_in_ngrok_terminal
 #          9) Start up cxclient
-#             open a terminal run : client myname    (anything longer than 6 chars will be cut to size) 
+#             open a terminal run : client somename    (anything longer than 6 chars will be cut to size) 
 #             wait for anyone else to connect or repeat this step with a different username and talk to
 #             yourself or send messages to your other computers.
 #             
 # Note : This system was tested and worked with client connections from 4 continents.   
-#        The cxchat.db is used to keep state and replay the last 50 messages so a new connected client knows whats going on.
+#        The cxchat.db is used to keep state and replay the last few messages so a new connected client knows whats going on.
 #        Username is stored in plaintext, usermessages are relayed and stored encrypted using xxtea-nim encryption scheme
 #        Other encryption schemes may be added in the future. 
 #        
-# Compile : nim  --threads:on -d:ssl -d:release -f c cxserver.nim     
+# Compile : nim  --threads:on -d:ssl -d:danger -f c cxserver.nim     
 #
 # Application : cxserver.nim     
 # Backend     : sqlite  
-# Last        : 2019-04-08
+# Last        : 2019-06-16
 #
 # Required    : ngrok 
 #               nimble install nimcx 
+#
+# Note        : This version writes the port encrypted to github
 #
 # Usage example
 # 
@@ -86,12 +88,13 @@ proc cxwrap(aline:string,wrappos:int = 70,xpos:int=1)  # forward decl
 var cxchatdb = gethomedir() & "/.cxchat/cxchat.db"  # or put it where ever you want
 var condata:Tcondata
 var sessioncon = newSeq[Tcondata]()
-let histreplaycount = "15"
+let histreplaycount = "15"     # return some historical records to the connecting client
 
 # this set up assumes that path2 is a gitified directory from which you can
 # make git push requests to a github repo of the same name which you need to set up yourself
 # the github repo will be used to store the file crydata1.txt which contains the connection port
-# required to have the cxclient connect to your server
+# required to have the cxclient connect to your server. The connection port in the publicly 
+# readable file on github is also encrypted .
 # github was selected because it is available from most countries, while dropbox may not work.
 # Other possibilities would be updateable pastebin location , your cloud location or a payed ngrok account etc
 # 
@@ -190,16 +193,21 @@ proc writeport(afile:string,ngrokport:string) =
     # a pastebin may or may not work for you.
     # if you have a paid ngrok account with a fixed port this setup may not be required 
     # and can be hard coded
-    var f = system.open(afile,fmWrite)
-    f.writeLine(ngrokport)
-    f.close
-    discard chdir(path2)
-
+    try:
+       var f = system.open(afile,fmWrite)
+       # idea to encrypt port number send to github with key , fails
+       let encport = encryptToBase64(ngrokport,key)  # works if compiled with -d:danger   , cxclient line in clientgetport adjusted accordingly
+       f.writeLine(encport)  # failed to connect     # works      
+       #f.writeLine(ngrokport)                       # works but now needs change see cxclient
+       f.close
+       discard chdir(path2)
+    except:
+        raise   # this actually throws due to cxprotocol line 105 error unless we compile the cxserver and cxclient with -d:danger
     decho(2) 
 
 #     # experimental git stash if testing server on several system and the same git repo
 #     # git does it's thing but sometimes it fails , you always can delete the dir and git clone your repo again 
-#     # best is to restart ngrok , cxserver  and then see if everything connects with the cxclient.
+#     # best is to restart ngrok , cxserver and then see if everything connects with the cxclient.
 #     #           
 #     var z0 = execCmdEx("git stash  ") # we try to stash anything before pulling
 #     printBiCol("git stash   ",xpos = 1)
@@ -505,7 +513,7 @@ when isMainModule:
   serverTimer.startTimer  
   cleanScreen()
   decho(2)
-  println2(hlf,deepskyblue,styled={stylebright})
+  println(hlf,deepskyblue,styled={stylebright})
 
   # we only store last 500 records , on server startup this maintenance delete query will be run
   

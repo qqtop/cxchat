@@ -3,12 +3,12 @@ import cxprotocol,threadpool
 import nimcx
 import std/wordwrap
 
-const clientversion = "3.8" 
+const clientversion = "4.2" 
 #  Application : cxclient.nim
-#  Latest      : 2019-02-23
+#  Latest      : 2019-06-23
 #  Usage       : cxclient eagle1   # you could use an emoji 😇 as user name too
 #  
-#  the cxserver prog writes the dynamic ngrok port to a github repo and the client reads it from there
+#  the cxserver prog writes the dynamic ngrok port encrypted to a github repo and the client reads it from there
 #  client restarts itself if a disconnect occurs , just press enter to get a new prompt
 #  if the client connection fails or flickers errormessages then the server is down.
 #  Longline handling is at least attempted and copy/paste code snippets are 
@@ -17,7 +17,7 @@ const clientversion = "3.8"
 #  Find the contrialsmax var below to set the restart attempts.
 #  Default is 10000 which should last abt 30 days.
 #  
-#  Compile  : nim  --threads:on -d:ssl -d:release -f c cxclient.nim
+#  Compile  : nim --threads:on -d:ssl -d:release -f c cxclient.nim
      
 var clientstart = epochTime() 
 var shwemojis = 0
@@ -40,28 +40,31 @@ proc clientGetPort(url:string = crydatapath):string =
      let client = newHttpClient()
      var xresult = ""
      try:
-        xresult = strip(client.getContent(url),true,true) 
+        xresult = strip(client.getContent(url),true,true)
+        # the port returned in xresult is now encrypted ,we need to decrypt here
+        result = decryptFromBase64(xresult,key)       
+         
      except HttpRequestError :
         printLnErrorMsg("Client connect error. E404 crydatapath not reachable")
         printLnErrorMsg("Possible causes: Internet down. Crydatapath in cxprotocol.nim not set or incorrect")
         doFinish()
-     result = xresult   
      
                          
 proc showEmojis() = 
      # using ejm3 from cxconsts.nim
-     printLnInfoMsg(gold & "Emojis  " & ivory,"Copy emoji you want to use and paste it into your text line." & spaces(8),colLeft=pastelblue,xpos = 1)                 
+     var smiki = newcolor(200,255,60)
+     cxprintLn(1,ivory,"[",smiki,"Emoji   ",ivory,"]" , yellow,yalebluebg," ","Copy emoji you want to use and paste it into your text line." & spaces(8))                 
      var ejm:string = ""
      for x in 0..22: ejm = ejm & ejm3[x] & " "
-     printLnInfoMsg(gold & "Emoji   " & ivory,strip(ejm),colLeft=pastelblue,xpos = 1) 
+     cxprintLn(1,ivory,"[",smiki,"Emoji   ",ivory,"]" , yellow,yalebluebg," ",strip(ejm)) 
      ejm = ""
      for x in 23..45: ejm = ejm & ejm3[x] & " "
-     printLnInfoMsg(gold & "Emoji   " & ivory,strip(ejm),colLeft=pastelblue,xpos = 1)
+     cxprintLn(1,ivory,"[",smiki,"Emoji   ",ivory,"]" , yellow,yalebluebg," ",strip(ejm))
      let ejml = ejm.len
      ejm = ""
      for x in 46..<ejm3.len: ejm = ejm & ejm3[x] & " "
-     ejm = ejm & hand & " " & errorsymbol & "  " & leftarrow & "  " & rightarrow & "  " & uparrow & "  " & downarrow
-     printLnInfoMsg(gold & "Emoji   " & ivory,cxpad(ejm,ejml - 8),colLeft=pastelblue,xpos = 1)
+     ejm = ejm & "  " & leftarrow & "  " & rightarrow & "  " & uparrow & "  " & downarrow & spaces(5)
+     cxprintLn(1,ivory,"[",smiki,"Emoji   ",ivory,"]" , yellow,yalebluebg," ",cxpad(ejm,ejml - 8))
                
                
 proc doPrompt(username:string) =
@@ -92,7 +95,7 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
   printLnInfoMsg("Connecting to", cxpad(serverAddr & " Port: " & $serverport.Port,cspace),yellow)
   printLnInfoMsg("Attempt      ", cxpad($contrials & " of " & $contrialsmax,cspace),pastelblue)
   printLnInfoMsg("Connect      ", cxpad("Press <enter> now or if no prompt. ",cspace),pastelblue)
-
+ 
   # Pause the execution of this procedure until the socket connects to the specified server.
   # or give error msg if server offline
   
@@ -223,6 +226,7 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
                                        printLnInfoMsg(cxpad(lightsalmon & parsed.username & "[C]",12), spaces(2) & cclcolor & swpm[xwpm],colLeft=pastelblue,xpos = 22)                                   
                                else:  
                                     printLnInfoMsg(cxpad(lightslategray & crynow & bblack & spaces(1) & lightsalmon & parsed.username & "[C]",32), spaces(1) & cclcolor & strip(pm,false,true),colLeft=lightsalmon,colRight = bblack,xpos = 1)
+                                   
         except:
             discard
   else:        
@@ -234,12 +238,13 @@ proc connect(socket: AsyncSocket, serverAddr: string, serverport:int,username:st
             printLnInfoMsg(red & cxpad("Error " & lightslategray & spaces(1) & cxDateTime() & ivory,20), "The cxserver maybe down or cannot be reached.   ",colLeft=pastelblue,xpos = 1)
             printLnInfoMsg(red & cxpad("Error " & lightslategray & spaces(1) & cxDateTime() & ivory,20), "Restart the client manually now or retry later. ",colLeft=pastelblue,xpos = 1)
             doFinish()       
+
  
 when isMainModule: 
     
     cleanscreen()
-    println2(hlf,truetomato,styled={stylebright})
-    cxprintLn(" Cxchat       " & cxpad("cxClient SateSticks V" & clientversion & spaces(23) & "qqTop 2019",64),colgold,slateblue,xpos=1)
+    println(hlf,truetomato,styled={stylebright})
+    printLn(" Cxchat       " & cxpad("cxClient SateSticks V" & clientversion & spaces(23) & "qqTop 2019",64),gold,truebluebg,xpos=1,styled={})
     # Ensure that a username was specified.
     if paramCount() < 1:
         # Terminate the client early with an error message if there was no username specified.
@@ -257,7 +262,7 @@ when isMainModule:
 
     clientstart = epochTime()
     var serverport = 0
-    # reads the ngrok port from the github which was written there by the server .. 
+    # reads the ngrok port from the github which was written there by the cxserver .. 
     serverport = parseInt(clientGetPort())
     # Initialise a new asynchronous socket.
     var socket = newAsyncSocket()
@@ -266,7 +271,7 @@ when isMainModule:
     # Execute the ``readInput`` procedure in the background in a new thread.
     # The Hello message will only be shown once per logon
     var messageFlowVar = spawn "Hello. I am online now !" & stdin.readLine()   # encryption done in protocol
-
+   
     while true:
           # Check if the ``readInput`` procedure returned a new line of input.
           if messageFlowVar.isReady():
@@ -275,13 +280,14 @@ when isMainModule:
              # If a new line of input was returned, we can safely retrieve it without blocking.
              # The ``createMessage`` is then used to create a message based on the
              # line of input. The message is then sent in the background asynchronously.
+                       
              asyncCheck socket.send(createMessage(username, ^messageFlowVar))
              # Execute the ``readInput`` procedure again, in the background in a new thread.
              messageFlowVar = spawn stdin.readLine()
-
+                         
           # Execute the asyncdispatch event loop, to continue the execution of asynchronous procedures.
           asyncDispatch.poll(30) 
-
+          
     asyncCheck connect(socket,serverAddr,serverport,username)
     runForever()
      
