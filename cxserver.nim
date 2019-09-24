@@ -1,40 +1,74 @@
+# cxserver.nim
+
 import asyncdispatch, asyncnet,threadpool,db_sqlite
 import cxprotocol
 import nimcx
 
 # cxchat - A very private chat application for the linux terminal
 #          run the cxserver on your small left over pc 
-#          share the cxclient and keyfile with a few friends,family or run it on a couple of your own systems
+#          share the cxclient and keyfile with a few friends or run it on a couple of your own systems
 #          
 # Setup :  
 #          1) For the server presented here you need a github account and ngrok (https://ngrok.com/) 
-#          2) On github create a new empty repo and name it : cryxtemp 
-#          3) In your home dir 2 hidden folders will be created
+#          2) On github create a new empty repo and name it : cryxtemp
+#             Open the file cxprotocol.nim and put your github account name at the indicated variable 
+#          3) In your home dir 2 hidden folders will be created on first run or create yourself
 #               .cxchat
 #               .cxchatconf       
 #          4) Create a file named niip.wsx to be used for encryption/decryption , fill it with    
 #             any number of random chars and save it into the .cxchat folder 
 #          5) Copy the provided cxchat.db or create one as below and save it into the .cxchat folder
-#          6) Change into your .cxchatconf folder and git clone your cryxtemp repo which you created in step 2 above.
-#          7) Share the niip.wsx and compiled cxclient executable with anyone you allow to connect.
-#          8) Start up cxserver:
+#          6) Change into your .cxchatconf folder and git clone your cryxtemp repo you created in step 2 above.
+#          7) Share the file niip.wsx and compiled cxclient executable with anyone you allow to connect.
+#          8) Start up cxserver example:
 #             a) open a terminal run : ngrok tcp 10001   
 #             b) open a terminal run : cxserver port_number_given_in_ngrok_terminal
-#          9) Start up cxclient
+#          9) Start up cxclient example:
 #             open a terminal run : client somename    (anything longer than 6 chars will be cut to size) 
 #             wait for anyone else to connect or repeat this step with a different username and talk to
 #             yourself or send messages to your other computers.
+#         10) To keep sockets warm and disconnect less often also run cxCalm in yet another terminal
+#             cxcalm pings the server every so often.
 #             
 # Note : This system was tested and worked with client connections from 4 continents.   
-#        The cxchat.db is used to keep state and replay the last few messages so a new connected client knows whats going on.
-#        Username is stored in plaintext, usermessages are relayed and stored encrypted using xxtea-nim encryption scheme
-#        Other encryption schemes may be added in the future. 
-#        
-# Compile : nim  --threads:on -d:ssl -d:danger -f c cxserver.nim     
+#        The cxchat.db is used to keep state and may replay the last few messages so a new connected
+#        client knows whats going on.
+#        Username is stored in plaintext, usermessages are relayed and stored encrypted using
+#        xxtea-nim encryption scheme, The port number to connect to is also encrypted.
+#        Other encryption schemes may be added in the future.
+#
+#        If any 2 or more cxclients use the same username the cxserver admin can notice this
+#        by the displayed ID information , but it would hard to know by the cxclient user.
+#        If this is an issue provide hardcoded username cxclients . 
+#
+# How does it work :
+#
+#        The cxserver writes the encrypted connection port to a github repo you control.
+#        If you use a dynamic (meaning free) ngrok account the port will change everytime
+#        ngrok is started .In order the to find the right port any cxclient will read this
+#        port number stored in your github repo. The cxclient will be able to decrypt it via
+#        the shared niip.wsx file , which every client must have.
+#
+#
+# Issues  :
+#
+#        All async clients eventually disconnect sometime . The cxserver is rather stable
+#        but occasional crashes may occur . Connected cxclients can survive a cxserver crash
+#        and will connect to the cxserver if it is restarted , before the cxclient has timed out.     
+#        cxcalm - the heartbeat application - helps to keep the system staying online longer,
+#        but if the cxserver crashes cxcalm will need to be restarted.
+#
+#        If the cxserver crashes a manual restart is required , because the ngrok port
+#        currently cannot be scraped from the ngrok local webpage 127.0.0.1:4040
+#        or the console
+#         
+#
+#
+# Compile : nim  --threads:on -d:ssl -d:danger -f cpp cxserver.nim     
 #
 # Application : cxserver.nim     
 # Backend     : sqlite  
-# Last        : 2019-06-16
+# Last        : 2019-09-24
 #
 # Required    : ngrok 
 #               nimble install nimcx 
@@ -45,8 +79,10 @@ import nimcx
 # 
 # 1) terminal 1   : ngrok tcp 10001                # if you change the port also change port here below 
 # 2) terminal 2   : cxserver port_as_given_by_ngrok
-# 3) terminal 3   : cxclient tokyo                 # any name is fine as long as it is max 6 chars long
-# 4) browser      : http://127.0.0.1:4040/status   # to see the ngrok status
+# 3) terminal 3   : cxCalm                         # optional - pings the server every 3 mins to keep the connections warm
+# 4) terminal 4   : cxclient tokyo                 # any name is fine as long as it is max 6 chars long
+                                                   # this of course can run on anyy other remote pc where cxclient is installed 
+# 5) browser      : http://127.0.0.1:4040/status   # to see the ngrok status
 # 
 # 
 # there is a empty cxchat.db provided
@@ -73,7 +109,10 @@ import nimcx
 #    
 #    
 
-let serverversion = "3.6 sqlite"
+let serverversion = "3.85 sqlite"
+# return some historical records to the connecting client
+# or set it to 0 for no history messages
+let histreplaycount = "15"     
 
 var hlf = """
   ___ _  _  __   ___  ___ _  _  ___  ___ 
@@ -88,13 +127,13 @@ proc cxwrap(aline:string,wrappos:int = 70,xpos:int=1)  # forward decl
 var cxchatdb = gethomedir() & "/.cxchat/cxchat.db"  # or put it where ever you want
 var condata:Tcondata
 var sessioncon = newSeq[Tcondata]()
-let histreplaycount = "15"     # return some historical records to the connecting client
+
 
 # this set up assumes that path2 is a gitified directory from which you can
 # make git push requests to a github repo of the same name which you need to set up yourself
 # the github repo will be used to store the file crydata1.txt which contains the connection port
 # required to have the cxclient connect to your server. The connection port in the publicly 
-# readable file on github is also encrypted .
+# readable file on github is also encrypted . 
 # github was selected because it is available from most countries, while dropbox may not work.
 # Other possibilities would be updateable pastebin location , your cloud location or a payed ngrok account etc
 # 
@@ -106,10 +145,10 @@ let histreplaycount = "15"     # return some historical records to the connectin
 # 
 var path1 = gethomedir() & ".cxchatconf"         # this dir will hold the the gitified cryxtemp dir
 if dirExists(path1) == false:  newdir(path1)
-var path2 = path1 & "/cryxtemp"                  # this is the cloned dir
-var path3 = path2 & "/crydata1.txt"              # this is where the temporary connection port is stored
+var path2 = path1 & "/cryxtemp"                  # this is the git cloned dir
+var path3 = path2 & "/crydata1.txt"              # this is where the encrypted connection port is stored
 
-let port = 10001  # change to whatever you want or is available 
+let port = 10001  # change to whatever you want or is available on your system
 let servername = "Cxserver"
 var serverTimer  = newCxtimer("cxServerTimer")
 var lastsu = epochTime()
@@ -132,7 +171,10 @@ var activeids = ""  # experimental to show active connection id in a server push
 
 proc newServer(): Server =
   ## Constructor for creating a new ``Server``.
-  Server(socket: newAsyncSocket(), clients: @[])
+  var mynewserver = newAsyncSocket()
+  mynewserver.setSockOpt(OptReuseAddr, true)   # testing
+  Server(socket: mynewserver, clients: @[])
+ 
 
 proc `$`(client: Client): string =
   ## Converts a ``Client``'s information into a string.
@@ -180,7 +222,7 @@ proc histDataMsg(aclient:string,aservername:string=servername,amsg:string):strin
      # displaying historical data to new connection
      result = amsg
 
-proc getPortServerside():string = paramStr(1)
+proc getPortServerside():string = paramStr(1)   # ideally scrap this off the ngrok web page 
  
 proc cxwrap(aline:string,wrappos:int = 70,xpos:int=1) =
      for wline in wrapWords(aline.strip(),72).splitLines():
@@ -197,8 +239,7 @@ proc writeport(afile:string,ngrokport:string) =
        var f = system.open(afile,fmWrite)
        # idea to encrypt port number send to github with key , fails
        let encport = encryptToBase64(ngrokport,key)  # works if compiled with -d:danger   , cxclient line in clientgetport adjusted accordingly
-       f.writeLine(encport)  # failed to connect     # works      
-       #f.writeLine(ngrokport)                       # works but now needs change see cxclient
+       f.writeLine(encport)                          # works      
        f.close
        discard chdir(path2)
     except:
@@ -206,7 +247,8 @@ proc writeport(afile:string,ngrokport:string) =
     decho(2) 
 
 #     # experimental git stash if testing server on several system and the same git repo
-#     # git does it's thing but sometimes it fails , you always can delete the dir and git clone your repo again 
+#     # git does it's thing but sometimes it fails , you always can delete the
+#     # cryxtemp dir in .cxchatconf and git clone your repo again there
 #     # best is to restart ngrok , cxserver and then see if everything connects with the cxclient.
 #     #           
 #     var z0 = execCmdEx("git stash  ") # we try to stash anything before pulling
@@ -262,19 +304,24 @@ proc sendHello(server: Server, client: Client) {.async.} =
      let nobody = "  Nobody online. "
      let clientcount = getClientCount(server)
      let tempclient = $client
-                 
+     let clc = $clientcount
+     let uol = "  Users online : "            
      # write some info on the server terminal if there is something new to report        
      if (clientcount == 0) and (lastmsg != nobody):         
-        printLnStatusMsg(cxpad(line & cxnow & nobody,55)) 
+        printLnStatusMsg(cxpad(line & cxnow & nobody,55))
+        echo()
         lastmsg = nobody 
         
-     # send message to connected clients unless last message was the same as new message   
-     elif (clientcount > 0) and (lastmsg != "  Users online : " & $clientcount):
-        printLnStatusMsg(cxpad(line & cxnow & "  Users online : " & $clientcount,55))
-        lastmsg = "  Users online : " & $clientcount
+     # send message to connected clients unless last message was the same as new message
+     # we need to account for cxCalm (a separate prog to keep the sockets alive)
+     #  
+     elif (clientcount > 0) and (lastmsg != uol & clc):
+        printLnStatusMsg(cxpad(line & cxnow & uol & clc,55))
+        echo()
+        lastmsg = uol & clc
         activeids = ""
         let gci = getClientIds(server)
-        for x in 0..<gci.len:
+        for x in 0 ..< gci.len:
             activeids = activeids & " " & $gci[x]     
         for c in server.clients:
           # Don't send it to the client that sent this or to a client that is disconnected.
@@ -286,10 +333,7 @@ proc sendHello(server: Server, client: Client) {.async.} =
                var serverFlowVar = spawn infoMsg(tempclient,clientcount=clientcount,clientId=clientId,activeids=activeids)
                let bmsg = createMessage(chatname, ^serverFlowVar)
                await c.socket.send(bmsg)  
-               
-     else:
-        discard 
-               
+                      
      return     
 
      
@@ -299,39 +343,39 @@ proc sendNews(server: Server, client: Client) {.async.} =
         let bmsg = createMessage(chatname, ^serverFlowVar)
         var nc = 1   # a counter to limit the message sending   --> this now works
         for c in server.clients:
-          # Don't send it to the client that sent this or to a client that is disconnected.
-          if c.connected and nc <= getClientCount(server):
-               await c.socket.send(bmsg)  
-               inc nc
-          else:
-               discard  
+            # Don't send it to the client that sent this or to a client that is disconnected.
+            if c.connected and nc <= getClientCount(server):
+                 await c.socket.send(bmsg)  
+                 inc nc
+            else:
+                 discard  
         return     
 
      
 proc sleepAlways(server: Server, client: Client)  {.async.} = 
     ## sendHello every so often currently abt 2 sec
     while true:
-        await sleepAsync(2000)          # wait 2 secs so everything settles down a bit
+        await sleepAsync(500)          # wait 0.5 secs so everything settles down a bit
         await sendHello(server,client)  # now send the message
         
         
 proc sleepKadang(server: Server, client: Client) {.async.} =    
     while true: 
-      await sleepAsync(60000)          # wait 6 minute     
+       await sleepAsync(50000)          # wait 50 secs     
     if sessioncon.len > 0:    
        await sendNews(server,client)    # send stuff if there is someone to send to
      
 proc sleepServerUptime(server: Server) {.async.} =    
-    # experimental to show serveruptime on server terminal in regular intervals using async
+    # show serveruptime on server terminal in regular intervals using async
     while true: 
        if (epochTime() - lastsu) > 60.0:
           printLnBiCol("cxServer Uptime : " & $initduration(seconds = int(lapTimer(serverTimer))),colLeft = skyBlue,xpos = 1)
           lastsu = epochTime() 
-       await sleepAsync(50000)          # wait 5 minutes or apparently whatever the scheduler likes  
+       await sleepAsync(65000)          # wait 1 minutes or apparently whatever the scheduler likes  
        
 proc processMessages(server: Server, client: Client) {.async.} =
-  ## Loops while ``client`` is connected to this server, and checks
-  ## whether a message has been received from ``client``.
+  # Loops while ``client`` is connected to this server, and checks
+  # whether a message has been received from ``client``.
   var tempclient = "" 
   var s = epochTime()
   while true:
@@ -353,7 +397,7 @@ proc processMessages(server: Server, client: Client) {.async.} =
               sessioncon.delete(removeid)
            except RangeError:         
               printLnInfoMsg("Attention",cxpad("RangeError SE100 thrown at " & cxnow,51),truetomato)
-              printLnInfoMsg("Sessioncon",$sessioncon,truetomato)
+              printLnInfoMsg("SessionCcon",$sessioncon,truetomato)
               #sessioncon = @[]
           
        if curclusr.len > 1:   
@@ -397,17 +441,20 @@ proc processMessages(server: Server, client: Client) {.async.} =
                scaddflag = false
        if scaddflag == true:
           sessioncon.add(condata)      # adding condata here means now we can check sessioncon to see who is online
-       printLnBicol("Sessioncon Last : " & auser & spaces(6) & $client.id,xpos = 1)
+       printLnBicol("SessionCon Last : " & auser & spaces(6) & "ID : " & $client.id,xpos = 1)
        # for debug
        #printLnBicol("Sessioncon : " & $sessioncon,colLeft=cyan,xpos=1)
-       printLnBicol("Sessioncon Live : Recently active out of " & $getClientCount(server) & " connected users",colLeft=cyan,xpos = 1)
+       
+       printLnBicol("SessionCon Live : Recently active out of " & $getClientCount(server) & " connected users",colLeft=cyan,xpos = 1)
        try:
          for sc in 0 ..< sessioncon.len:
             printLnBiCol("ID " & $sessioncon[sc][0] & " : " & sessioncon[sc][1],xpos=3)
             
        except:
-            printLnBicol("Sessioncon : " & $sessioncon,colLeft=red,xpos=1)
+            printLnBicol("SessionCon : " & $sessioncon,colLeft=red,xpos=1)
             discard
+            
+       printLnBiCol("Server Timestamp: " & cxdatetime(),xpos=1)    
        printLnBiCol("cxServer Uptime : " & $initduration(seconds = int(lapTimer(serverTimer))),colLeft = pink,xpos = 1)
                     
        if amsg.strip() <> "":     
@@ -419,7 +466,9 @@ proc processMessages(server: Server, client: Client) {.async.} =
        for c in server.clients:
           # Don't send it to the client that sent this or to a client that is disconnected.
           if c.id != client.id and c.connected:
-              await c.socket.send(line & "\c\l")        
+              await c.socket.send(line & "\c\l")
+
+              
        
             
 proc loop(server: Server, port = port) {.async.} =
@@ -452,7 +501,7 @@ proc loop(server: Server, port = port) {.async.} =
     )
     # Add this new instance to the server's list of clients.
     server.clients.add(client)
-    # now we want to send the last 50 records to the new client only
+    # now we want to send the last histreplay records to the new client only
     let db = open(cxchatdb, "", "", "")
     for qres in db.fastRows(sql"SELECT b.client,b.msg,b.svdate FROM (SELECT r.id,r.svdate,r.client,r.msg FROM cryxdata r ORDER BY r.id DESC LIMIT ?) b ORDER BY b.id ASC" , histreplaycount) :
         #decho(2)
@@ -464,12 +513,12 @@ proc loop(server: Server, port = port) {.async.} =
                 #needs to be done for sqllite result here    
                 #also need to unpack the cursor to get the data for the histDataMsg
                 var v0 = qres[0]
-                var v1 = qres[1]
-                var v2 = qres[2]
-                var histclient = v0 & "[H]"
-                var histamsg = v1  
-                var histdate = v2
-                var histdata = " "
+                #var v1 = qres[1]
+                #var v2 = qres[2]
+                let histclient = v0 & "[H]"
+                var histamsg = qres[1]  
+                var histdate = qres[2]
+                var histdata = spaces(1)
                 #echo histdate," ",histclient , decryptFromBase64(histamsg,key).strip()    # for debug use only
                 if histamsg.len > 0:
                    histdata = histdate & " --> " & decryptFromBase64(histamsg,key).strip(false,true)  
@@ -483,6 +532,8 @@ proc loop(server: Server, port = port) {.async.} =
                     if c.id == client.id and c.connected:
                           await c.socket.send(histmsg)
     db.close()
+
+    
     
     # here we try to inform the others in case there was a new connection 
     if oldclientscount < server.clients.len:   # if true then someone must have connected to the server
@@ -492,8 +543,8 @@ proc loop(server: Server, port = port) {.async.} =
             if sessioncon[x][0] == client.id:
                 cusr = sessioncon[x][1] # hopefully we get the name
         
-         var serverFlowVar2 = spawn connectMsg($client,cusr=cusr)
-         var cmsg = createMessage(chatname, ^serverFlowVar2)
+         let serverFlowVar2 = spawn connectMsg($client,cusr=cusr)
+         let cmsg = createMessage(chatname, ^serverFlowVar2)
                          
          for c in server.clients:
          # Don't send it to the client that sent this or to a client that is disconnected.
@@ -506,8 +557,8 @@ proc loop(server: Server, port = port) {.async.} =
     # Run the ``processMessages`` procedure asynchronously in the background,
     # this procedure will continuously check for new messages from the client.
     asyncCheck processMessages(server, client)
-    #await sendHello(server,client)   # sends a message to all clients , how to do it like every 3 mins ? 
-    asyncCheck sleepServerUptime(server)         # write local
+    #await sendHello(server,client)       # sends a message to all clients , how to do it like every 3 mins ? 
+    asyncCheck sleepServerUptime(server)  # write local
     
 when isMainModule:
   serverTimer.startTimer  
@@ -516,6 +567,7 @@ when isMainModule:
   println(hlf,deepskyblue,styled={stylebright})
 
   # we only store last 500 records , on server startup this maintenance delete query will be run
+  # cxclient currently set to display recent 15 rows  only
   
   let keeplast500 = sql"""DELETE FROM cryxdata
   WHERE id <= (
@@ -525,7 +577,7 @@ when isMainModule:
       FROM cryxdata    
 	  ORDER BY id DESC
       LIMIT 1 OFFSET 500 
-    ) foo
+    ) 
   )
   """   
   
@@ -541,9 +593,9 @@ when isMainModule:
   try:
      ngrokport = getPortServerside()
   except :
-     printLnErrorMsg("  The ngrok port not specified. cxserver ngrokport       ") 
-     printLnErrorMsg("  Try to run : ngrok tcp $1 in a new terminal first ! " % $port)
-     printLnFailMsg("  cxserver could not be initialized.                     ")
+     printLnErrorMsg("  The ngrok port not specified. Usage: cxserver ngrokport  ") 
+     printLnErrorMsg("  Try to run : ngrok tcp $1 in a new terminal first !   " % $port)
+     printLnFailMsg("  cxserver could not be initialized.                       ")
      doFinish()
      
   printLnStatusMsg(cxpad("cxServer initialised!  ",55))   
@@ -555,8 +607,8 @@ when isMainModule:
     printLnErrorMsg("  Try to run : ngrok tcp $1 in a new terminal first ! " % $port)
     doFinish()
      
-  # Execute the ``loop`` procedure. The ``waitFor`` procedure will run the
-  # asyncdispatch event loop until the ``loop`` procedure finishes executing.
+  # Execute the ``loop`` procedure. The ``waitFor`` procedure will run the server
+  # asyncdispatch event loops until the ``loop`` procedure finishes executing.
   waitFor loop(server)
-
+  
 # end of cxserver 

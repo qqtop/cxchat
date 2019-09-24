@@ -1,21 +1,19 @@
 # cxprotocol.nim
 # part of cxchat
 # 
-# Last : 2019-01-09
+# Last : 2019-09-24
 # 
 # the keyfile used for encryption/decryption is called niip.wsx and currently must be in
 # <homedir>/.cxchat . This directory is automatically created the keyfile must be provided
 # by the cxserver admin to the cxclient user. It is a plaintext file with any number of random chars.
 # 
-
-import base64
 import nimcx
-
+import base64
 
 # change this accordingly to reach your github repo
-let githubrepo = ""   # <---- name of your github account here
+let githubrepo = "your-github-repo-name"   # name of your github account here
 let crydatapath* = "https://raw.githubusercontent.com/" & githubrepo & "/cryxtemp/master/crydata1.txt"
-
+              
 if githubrepo == "":
    printLnErrorMsg("You need to set correct githubrepo in cxprotocol.nim first then recompile cxserver and cxclient")
    doFinish() 
@@ -26,14 +24,16 @@ let chatname* = "CXCHAT"  # used as identifier in server push messages
 let niipwsxdir = getHomeDir() & ".cxchat/"
 let niipwsx =  niipwsxdir & "niip.wsx"  # path to keyfile, content can be anything , keyfile must be available to server and clients
 if dirExists(niipwsxdir) == false:  newdir(niipwsxdir)
-if fileExists(niipwsx) == false:            
+if unlikely(not existsFile(niipwsx)):
+    currentLine()
     # exit if file not found                
-    echo()  
     let tmsg = "Installation path error . Protocol Error No. E101 keyfile does not exist.    "
     printLnErrorMsg(tmsg)
     printLnErrorMsg("contact cxserver admin for the keyfile or copy it into directory shown below.")
     printLnErrorMsg(cxpad("Put your keyfile niip.wsx into " & niipwsxdir,tmsg.len))
     printLnErrorMsg(cxpad("Currently cannot continue. Bye Bye",tmsg.len))
+    printLnErrorMsg(cxpad(&"  .wsx file \"{niipwsx}\" does not exist",tmsg.len))
+    #raise newException(IOError,&".wsx file \"{niipwsx}\" does not exist") # The rough way to show the error  
     doFinish()   
     
 # read in the keydata
@@ -158,8 +158,8 @@ type
 
   MessageParsingError* = object of Exception
 
-proc parseMessage*(data: string): Message {.raises: [MessageParsingError, KeyError].} =
-  
+#proc parseMessage*(data: string): Message {.raises: [MessageParsingError, KeyError].} =
+proc parseMessage*(data: string): Message  =  
   var dataJson: JsonNode
   if data.len == 0 :
     result.message = ""

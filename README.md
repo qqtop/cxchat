@@ -1,15 +1,15 @@
 # cxchat
 
- client/server terminal chat system for small groups
+ Terminal chat system for small groups
  
  
  Connections via a ngrok tunnel 
  
  Encrypted messages 
  
- Compiles with nim devel branch 
+ Compiles with nim 1.0 and up  
 
- 
+ Requires a github account and ngrok installation .
 
  ![Image](http://qqtop.github.io/cxserver.png?raw=true)
  
