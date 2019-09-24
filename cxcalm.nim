@@ -4,13 +4,13 @@ import cxprotocol
 
 # cxcalm
 #
-# Heartbeat for cxchat
-
-# we connect into the current chat and send messages every soften to keep the sockets alive
-# status : ok but still dies sometimes , maybe really implement a a pid basesd system which
-#          restarts via a cronjob
+# Heartbeat for cxchat optional since cxclient.nim now has a heartbeat build in  
 #
-# 2019/08/21
+# we connect into the current chat and send pings every soften to keep the sockets alive
+# status : ok
+#
+#
+# 2019/09/24
 
 # Compile with
 #nim -d:threadsafe --threads:on -d:ssl -d:release -d:danger -f cpp cxCalm 
